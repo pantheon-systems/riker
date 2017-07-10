@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package botpb;
+
+service RedShirt {
+  rpc ClientStream(stream ChatMessage) returns (Error) {};
+  rpc RegisterCommand(Command) returns (stream ChatMessage) {};
+}
+
+message Error {
+  string error = 1;
+}
+
+message ChatMessage {
+  string channel = 1;
+  string message = 50;
+}
+
+message Command {
+  string name = 1;
+  string usage = 2;
+  string description = 3;
+
+  CommandAuth auth = 4;
+}
+
+message CommandAuth {
+  repeated string users = 1;
+  repeated string groups = 2;
+}
