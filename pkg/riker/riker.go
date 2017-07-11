@@ -221,9 +221,14 @@ func (b *Bot) startBroker() {
 				// for now strip this out
 				msgSlice := strings.Split(ev.Text, " ")
 
-				// normalize the msgSlice, total garbage.. but CBF
+				_, err := b.rtm.GetChannelInfo(ev.Channel)
+				dm := err.Error() == "channel_not_found"
 				botString := "<@" + botID + ">"
 				if msgSlice[0] != botString {
+					if !dm {
+						continue
+					}
+					// normalize the msgSlice, total garbage.. but CBF
 					msgSlice = append([]string{botString}, msgSlice...)
 				}
 
