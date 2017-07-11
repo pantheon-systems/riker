@@ -17,9 +17,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	client := botpb.NewRedShirtClient(conn)
-
-	cmd := &botpb.Command{
+	client := botpb.NewRikerClient(conn)
+	cap := &botpb.Capability{
 		Name:        "echo",
 		Usage:       "send text we will send it back",
 		Description: "This command will echo what you say back to you",
@@ -29,7 +28,16 @@ func main() {
 		},
 	}
 
-	stream, err := client.RegisterCommand(context.Background(), cmd)
+	reg, err := client.NewRedShirt(context.Background(), cap)
+	if err != nil {
+		log.Fatal("wtf this shouln't fail: ", err.Error())
+	}
+
+	if !reg.CapabilityApplied {
+		log.Println("someone already registered this command, but that's fine with me.")
+	}
+
+	stream, err := client.CommandStream(context.Background(), reg)
 	if err != nil {
 		log.Fatal("error talking to server", err)
 	}
@@ -37,10 +45,10 @@ func main() {
 	for {
 		msg, err := stream.Recv()
 		if err == io.EOF {
-			break
+			continue
 		}
 		if err != nil {
-			log.Fatalf("%v.ListFeatures(_) = _, %v", client, err)
+			log.Fatalf(" error %+v = %v", client, err)
 		}
 		log.Println("got msg", msg)
 	}

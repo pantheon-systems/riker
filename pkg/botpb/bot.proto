@@ -2,29 +2,74 @@ syntax = "proto3";
 
 package botpb;
 
-service RedShirt {
-  rpc ClientStream(stream ChatMessage) returns (Error) {};
-  rpc RegisterCommand(Command) returns (stream ChatMessage) {};
+service Riker {
+	// Register new RedShirt with riker
+	rpc NewRedShirt(Capability) returns (Registration);
+
+	// Client pull from riker the next message available to process for the RedShirt
+	rpc NextCommand(Registration) returns (Message);
+
+	//  Riker Push Stream to client
+	rpc CommandStream(Registration) returns (stream Message);
+
+	// client -> Riker Messaging
+	rpc SendStream(stream Message) returns (SendResponse);
+	rpc Send(Message) returns (SendResponse);
 }
 
-message Error {
-  string error = 1;
+// used to represent a slack message between riker <-> client
+message Message {
+	// channel ID this came in on or should go out on :P
+	string channel = 1;
+
+	// WHen riker pushes a message the client needs the timestamp if it want to reply in a thread
+	string timestamp = 2;
+
+	// when client sends to riker, it needs to specify the thread_ts if its a reply.
+	string thread_ts = 3;
+
+	// data is the text that was sent, or to be sent
+	string payload = 4;
 }
 
-message ChatMessage {
-  string channel = 1;
-  string message = 50;
+message SendResponse {
+	bool ok = 1 ;
+	string message = 2;
 }
 
-message Command {
-  string name = 1;
-  string usage = 2;
-  string description = 3;
+message Capability {
+	string name = 1;
+	string usage = 2;
+	string description = 3;
 
-  CommandAuth auth = 4;
+	CommandAuth auth = 4;
+
+	bool forced_registration = 5;
+	// bffersize
+	// 0 ... 100
+	enum bufferconfig {
+		// If unbuffered is chosen and the redshirt doesn't have an open stream, messages will fail
+		UNBUFFERED = 0;
+
+		// these are mesage queue depths both CommandStream and NextCommand will use it.
+		SMALL = 10;
+		MEDIUM = 50;
+		LARGE = 100;
+	}
+	bufferconfig buffer_size = 6;
+}
+
+// this is a simple response
+message Registration {
+	string name = 1;
+	bool capability_applied = 2;
 }
 
 message CommandAuth {
-  repeated string users = 1;
-  repeated string groups = 2;
+	repeated string users = 1;
+	repeated string groups = 2;
+}
+
+message Error {
+	string error = 1;
 }
