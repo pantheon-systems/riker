@@ -17,18 +17,18 @@ import (
 	"github.com/pantheon-systems/riker/pkg/botpb"
 )
 
-type registrationError string
+type rikerError string
 
-func (e registrationError) Error() string {
+func (e rikerError) Error() string {
 	return string(e)
 }
 
 // ErrorAlreadyRegistered is returned when a registration attempt is made for an
 // already existing command and the Capability deosn't specify forced registration
-const ErrorAlreadyRegistered = registrationError("Already registered")
+const ErrorAlreadyRegistered = rikerError("Already registered")
 
 // ErrorNotRegistered is returned when a client making a request request is not registered.
-const ErrorNotRegistered = registrationError("Not registered")
+const ErrorNotRegistered = rikerError("Not registered")
 
 // Bot is the bot
 type Bot struct {
@@ -39,7 +39,8 @@ type Bot struct {
 	redshirts map[string]*redShirtRegistration
 	*sync.RWMutex
 
-	grpc *grpc.Server
+	channels map[string]bool
+	grpc     *grpc.Server
 }
 
 // holds info on a connected client so we can send it data
@@ -90,7 +91,20 @@ func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Re
 
 // NextCommand is the call a client makes to pull the next command from rikers command buffer
 func (b *Bot) NextCommand(ctx context.Context, reg *botpb.Registration) (*botpb.Message, error) {
-	return &botpb.Message{}, nil
+	// TODO: CommandStream and this method do the same registration checking, could be refactored if we do it more than this.
+	b.RLock()
+	rs, ok := b.redshirts[reg.Name]
+	b.RUnlock()
+	if !ok {
+		return nil, ErrorNotRegistered
+	}
+
+	select {
+	case m := <-rs.queue:
+		return m, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // CommandStream is the call a client makes to setup a Push stream from riker -> client
@@ -114,13 +128,14 @@ func (b *Bot) CommandStream(reg *botpb.Registration, stream botpb.Riker_CommandS
 			break
 		}
 	}
-
 	return nil
 }
 
 // Send is the call a client makes to send a message back to riker
 func (b *Bot) Send(ctx context.Context, msg *botpb.Message) (*botpb.SendResponse, error) {
-	return &botpb.SendResponse{}, nil
+	m := b.rtm.NewOutgoingMessage(msg.Payload, msg.Channel)
+	b.rtm.SendMessage(m)
+	return &botpb.SendResponse{Ok: true}, nil
 }
 
 // SendStream is the call a client makes to send a stream message back to riker
@@ -135,7 +150,8 @@ func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
 		if err != nil {
 			return err
 		}
-		log.Println(in)
+		msg := b.rtm.NewOutgoingMessage(in.Payload, in.Channel)
+		b.rtm.SendMessage(msg)
 	}
 
 	return nil
@@ -150,6 +166,7 @@ func New(key string) *Bot {
 		name:      "riker",
 		grpc:      grpcServer,
 		redshirts: make(map[string]*redShirtRegistration, 10),
+		channels:  make(map[string]bool, 100),
 	}
 	b.RWMutex = &sync.RWMutex{}
 
@@ -221,11 +238,27 @@ func (b *Bot) startBroker() {
 				// for now strip this out
 				msgSlice := strings.Split(ev.Text, " ")
 
-				_, err := b.rtm.GetChannelInfo(ev.Channel)
-				dm := err.Error() == "channel_not_found"
+				//  we need to detect  a direct message from a channel message, and unfortunately slack doens't make that super awesome
+				b.Lock()
+				isChan, ok := b.channels[ev.Channel]
+				if !ok {
+					_, err := b.rtm.GetChannelInfo(ev.Channel)
+					if err != nil && err.Error() != "channel_not_found" {
+						log.Println("not dm not channel: ", err)
+						continue
+					}
+
+					if err == nil {
+						isChan = true
+					}
+
+					b.channels[ev.Channel] = isChan
+				}
+				b.Unlock()
+
 				botString := "<@" + botID + ">"
 				if msgSlice[0] != botString {
-					if !dm {
+					if isChan {
 						continue
 					}
 					// normalize the msgSlice, total garbage.. but CBF
@@ -280,7 +313,7 @@ func (b *Bot) startBroker() {
 
 			default:
 				// Ignore other events..
-				//fmt.Println("Unhandled event: ", msg.Type)
+				fmt.Println("Unhandled event: ", msg.Type)
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/pantheon-systems/riker/pkg/botpb"
 	"google.golang.org/grpc"
 )
@@ -50,6 +51,14 @@ func main() {
 		if err != nil {
 			log.Fatalf(" error %+v = %v", client, err)
 		}
-		log.Println("got msg", msg)
+
+		log.Printf("Got message: %+v\n", msg)
+		resp, err := client.Send(context.Background(), msg)
+		if err != nil {
+			log.Println("Error sending: ", err)
+		}
+
+		spew.Dump(resp)
+
 	}
 }
