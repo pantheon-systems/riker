@@ -134,6 +134,7 @@ func (b *Bot) CommandStream(reg *botpb.Registration, stream botpb.Riker_CommandS
 // Send is the call a client makes to send a message back to riker
 func (b *Bot) Send(ctx context.Context, msg *botpb.Message) (*botpb.SendResponse, error) {
 	m := b.rtm.NewOutgoingMessage(msg.Payload, msg.Channel)
+	m.ThreadTimestamp = msg.ThreadTs
 	b.rtm.SendMessage(m)
 	return &botpb.SendResponse{Ok: true}, nil
 }
@@ -151,6 +152,7 @@ func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
 			return err
 		}
 		msg := b.rtm.NewOutgoingMessage(in.Payload, in.Channel)
+		msg.ThreadTimestamp = in.ThreadTs
 		b.rtm.SendMessage(msg)
 	}
 
@@ -224,6 +226,7 @@ func (b *Bot) startBroker() {
 				log.Printf("User Joined: %+v", ev.User)
 
 			case *slack.MessageEvent:
+
 				spew.Dump(ev)
 				log.Printf("Message recieved: %+v", ev)
 				// ignore messages from other bots or ourself

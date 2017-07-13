@@ -1,0 +1,15 @@
+#!/bin/bash
+echo  "NO NO NO"
+
+if [[ "$1" == "" ]] ; then
+  echo  "ERR ERR ERR" >&2
+  echo  "ERR ERR ERR" >&2
+  echo  "ERR ERR ERR" >&2
+  exit 1
+fi
+
+echo  "OK: YES YES YES"
+echo  "OK: YES YES YES"
+echo  "OK: YES YES YES"
+
+exit 0
