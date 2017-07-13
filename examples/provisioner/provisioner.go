@@ -37,8 +37,8 @@ func main() {
 		Usage:       "Manage provisioning of gce instances",
 		Description: "Provision and delete gce instances",
 		Auth: &botpb.CommandAuth{
-			Users:  []string{"jesse@pantheon.io"},
-			Groups: []string{"engineering"},
+			Users:  []string{"jesse@getpantheon.com"},
+			Groups: []string{"infra"},
 		},
 	}
 

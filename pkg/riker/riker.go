@@ -32,8 +32,12 @@ const ErrorNotRegistered = rikerError("Not registered")
 
 // Bot is the bot
 type Bot struct {
-	rtm  *slack.RTM
 	name string
+	rtm  *slack.RTM
+	api  *slack.Client
+
+	users  []slack.User
+	groups []slack.UserGroup
 
 	// redshirts holds state of commands that map to client registrations
 	redshirts map[string]*redShirtRegistration
@@ -160,17 +164,19 @@ func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
 }
 
 // New is the constroctor for a bot
-func New(key string) *Bot {
+func New(botKey, token string) *Bot {
 	grpcServer := grpc.NewServer()
 
 	b := &Bot{
-		rtm:       slack.New(key).NewRTM(),
+		rtm:       slack.New(botKey).NewRTM(),
+		api:       slack.New(token),
 		name:      "riker",
 		grpc:      grpcServer,
 		redshirts: make(map[string]*redShirtRegistration, 10),
 		channels:  make(map[string]bool, 100),
 	}
 	b.RWMutex = &sync.RWMutex{}
+	//b.rtm.SetDebug(true)
 
 	botpb.RegisterRikerServer(grpcServer, b)
 	return b
@@ -187,7 +193,9 @@ func (b *Bot) Run() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	log.Println("Listening on tcp://0.0.0.0:6000")
-	go b.grpc.Serve(l)
+	go func() {
+		log.Fatal(b.grpc.Serve(l))
+	}()
 	b.startBroker()
 }
 
@@ -219,15 +227,26 @@ func (b *Bot) startBroker() {
 		case msg := <-b.rtm.IncomingEvents:
 			switch ev := msg.Data.(type) {
 			case *slack.ConnectedEvent:
+				var err error
 				botID = ev.Info.User.ID
+				b.users, err = b.rtm.GetUsers()
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				b.groups, err = b.api.GetUserGroups()
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				//spew.Dump(users, err)
 				log.Printf("Bot has connected!\n %+v", ev.Info.User)
 
 			case *slack.TeamJoinEvent:
 				log.Printf("User Joined: %+v", ev.User)
 
 			case *slack.MessageEvent:
-
-				spew.Dump(ev)
+				//	spew.Dump(ev)
 				log.Printf("Message recieved: %+v", ev)
 				// ignore messages from other bots or ourself
 				if ev.BotID != "" || ev.User == botID {
@@ -291,6 +310,30 @@ func (b *Bot) startBroker() {
 					continue
 				}
 
+				// Verify this person is allowed to run this command, cause unauthed commands are a violation of starfleet protocols.
+				log.Println("Checking user authentication", ev.User)
+
+				auth := false
+				for _, ua := range rsReg.cap.Auth.Users {
+					auth = b.idHasEmail(ev.User, ua)
+					if auth {
+						break
+					}
+				}
+
+				for _, ga := range rsReg.cap.Auth.Groups {
+					auth = auth || b.idInGroup(ev.User, ga)
+					if auth {
+						break
+					}
+				}
+
+				if !auth {
+					msg := b.rtm.NewOutgoingMessage("Computer reports: 'ACCESS DENIED'", ev.Channel)
+					go b.rtm.SendMessage(msg)
+					continue
+				}
+
 				msg := &botpb.Message{
 					Channel:   ev.Channel,
 					Timestamp: ev.Timestamp,
@@ -316,8 +359,38 @@ func (b *Bot) startBroker() {
 
 			default:
 				// Ignore other events..
-				fmt.Println("Unhandled event: ", msg.Type)
+				//				fmt.Println("Unhandled event: ", msg.Type)
 			}
 		}
 	}
+}
+
+func (b *Bot) idHasEmail(id, email string) bool {
+	for _, u := range b.users {
+		log.Println("User ID: " + u.ID + " email: " + u.Profile.Email)
+		if u.ID == id && u.Profile.Email == email {
+			log.Println("---------------- MATCHED -----------------")
+			return true
+		}
+	}
+	return false
+}
+
+func (b *Bot) idInGroup(id, group string) bool {
+	for _, g := range b.groups {
+		log.Printf("checking group " + group + " == " + g.Handle)
+		if g.Handle == group {
+			m, err := b.api.GetUserGroupMembers(g.ID)
+			spew.Dump(err)
+			spew.Dump(m)
+			for _, u := range m {
+				log.Printf("ZOMG: %s == %s", u, id)
+				if u == id {
+					return true
+				}
+			}
+		}
+
+	}
+	return false
 }
