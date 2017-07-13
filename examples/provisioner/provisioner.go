@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os/exec"
@@ -85,7 +86,8 @@ func main() {
 		spew.Dump(reply)
 
 		c := exec.Cmd{
-			Path: "./test",
+			//			Path: "./test",
+			Path: "./provision",
 			Args: args,
 		}
 
@@ -105,34 +107,50 @@ func runCmd(reply *botpb.Message, c exec.Cmd) {
 	err := c.Start()
 	if err != nil {
 		log.Println("Failed to start command: ", err.Error())
-		reply.Payload = "Failed to start command: " + err.Error()
+		reply.Payload = "Failed to start command: ```" + err.Error() + "```"
 		sendMsg(reply)
 		return
 	}
 
+	reply.Payload = "Starting provision with args: ```" + strings.Join(c.Args, " ") + "```"
+	sendMsg(reply)
+
+	lines := make([]string, 200)
+
 	r := bufio.NewReader(combined)
 	for {
-		line, _, err := r.ReadLine()
+		line, err := r.ReadBytes('\n')
 		if err != nil {
 			if err == io.EOF {
+				reply.Payload = "```" + strings.Join(lines, "") + "```"
+				sendMsg(reply)
 				break
 			}
 
-			reply.Payload = "Error reading output: " + err.Error() + "\n Processing: " + string(line)
+			reply.Payload = "Error reading output: ```" + err.Error() + "```\n While Processing: ```" + string(line) + "```"
 			sendMsg(reply)
 			break
 		}
 
-		if okMatch.Match(line) {
-			reply.Payload = string(line)
+		fmt.Print(string(line))
+		lines = append(lines, string(line))
+
+		if len(lines) >= 5 {
+			reply.Payload = "```" + strings.Join(lines, "") + "```"
 			sendMsg(reply)
+			lines = lines[:0]
 		}
+		//		if okMatch.Match(line) {
+		//		}
 	}
 
 	if err = c.Wait(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
 			// The program has exited with an exit code != 0
-			reply.Payload = "Command exit with status code > 0:\n" + stderrCopy.String()
+			reply.Payload = "Command exit with status code > 0:\n ```" + stderrCopy.String() + "```"
+			sendMsg(reply)
+			reply.ThreadTs = ""
+			reply.Timestamp = ""
 			sendMsg(reply)
 		}
 	}
