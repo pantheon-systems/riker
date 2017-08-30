@@ -38,8 +38,8 @@ func main() {
 		Usage:       "Manage provisioning of gce instances",
 		Description: "Provision and delete gce instances",
 		Auth: &botpb.CommandAuth{
-			Users:  []string{"jesse@getpantheon.com"},
-			Groups: []string{"infra"},
+			Users: []string{"jesse@getpantheon.com"},
+			//			Groups: []string{"infra"},
 		},
 	}
 
@@ -116,10 +116,14 @@ func runCmd(reply *botpb.Message, c exec.Cmd) {
 	sendMsg(reply)
 
 	lines := make([]string, 200)
-
+	// recieve line
+	// set timer
+	// if we get data before timer expires
+	// reset timer
+	// if timer expires if buffer >= max msg size, flush
 	r := bufio.NewReader(combined)
 	for {
-		line, err := r.ReadBytes('\n')
+		line, _, err := r.ReadLine()
 		if err != nil {
 			if err == io.EOF {
 				reply.Payload = "```" + strings.Join(lines, "") + "```"

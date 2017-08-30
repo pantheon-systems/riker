@@ -9,7 +9,10 @@ if [[ "$1" == "" ]] ; then
 fi
 
 echo  "OK: YES YES YES"
+
+sleep 3
 echo  "OK: YES YES YES"
+sleep 3
 echo  "OK: YES YES YES"
 
 exit 0

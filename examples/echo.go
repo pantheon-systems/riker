@@ -25,7 +25,7 @@ func main() {
 		Description: "This command will echo what you say back to you",
 		Auth: &botpb.CommandAuth{
 			Users:  []string{"jesse@pantheon.io"},
-			Groups: []string{"engineering"},
+			Groups: []string{"infra"},
 		},
 	}
 
