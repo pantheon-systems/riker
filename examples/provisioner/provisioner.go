@@ -38,7 +38,10 @@ func main() {
 		Usage:       "Manage provisioning of gce instances",
 		Description: "Provision and delete gce instances",
 		Auth: &botpb.CommandAuth{
-			Users: []string{"jesse@getpantheon.com"},
+			Users: []string{
+				"jesse@getpantheon.com",
+				"joe@getpantheon.com",
+			},
 			//			Groups: []string{"infra"},
 		},
 	}
@@ -86,8 +89,8 @@ func main() {
 		spew.Dump(reply)
 
 		c := exec.Cmd{
-			//			Path: "./test",
-			Path: "./provision",
+			Path: "./test",
+			// Path: "./provision",
 			Args: args,
 		}
 

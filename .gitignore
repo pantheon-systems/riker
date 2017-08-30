@@ -1,2 +1,3 @@
 /riker
 vendor/*
+.envrc

@@ -1,7 +1,6 @@
 package riker
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -36,7 +35,7 @@ type Bot struct {
 	rtm  *slack.RTM
 	api  *slack.Client
 
-	users  []slack.User
+	users  sync.Map
 	groups []slack.UserGroup
 
 	// redshirts holds state of commands that map to client registrations
@@ -126,7 +125,7 @@ func (b *Bot) CommandStream(reg *botpb.Registration, stream botpb.Riker_CommandS
 			select {
 			case rs.queue <- m:
 			default:
-				msg := b.rtm.NewOutgoingMessage("Comunicator malfunction while talking to redshirt.", m.Channel)
+				msg := b.rtm.NewOutgoingMessage("Communicator malfunction while talking to redshirt.", m.Channel)
 				go b.rtm.SendMessage(msg)
 			}
 			break
@@ -160,11 +159,13 @@ func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
 		b.rtm.SendMessage(msg)
 	}
 
-	return nil
+	//return nil
 }
 
 // New is the constroctor for a bot
 func New(botKey, token string) *Bot {
+	// TODO: auth .. creds / server opts .. config struct FTW
+	//creds := credentials.()
 	grpcServer := grpc.NewServer()
 
 	b := &Bot{
@@ -229,9 +230,13 @@ func (b *Bot) startBroker() {
 			case *slack.ConnectedEvent:
 				var err error
 				botID = ev.Info.User.ID
-				b.users, err = b.rtm.GetUsers()
+
+				usersSlice, err := b.rtm.GetUsers()
 				if err != nil {
 					log.Fatal(err)
+				}
+				for _, u := range usersSlice {
+					b.users.Store(u.ID, u)
 				}
 
 				b.groups, err = b.api.GetUserGroups()
@@ -244,6 +249,7 @@ func (b *Bot) startBroker() {
 
 			case *slack.TeamJoinEvent:
 				log.Printf("User Joined: %+v", ev.User)
+				b.users.Store(ev.User.ID, ev.User)
 
 			case *slack.MessageEvent:
 				//	spew.Dump(ev)
@@ -257,7 +263,7 @@ func (b *Bot) startBroker() {
 					continue
 				}
 
-				// for now strip this out
+				// for now strip this out and convert the text message into an array of words for easier parsing
 				msgSlice := strings.Split(ev.Text, " ")
 
 				//  we need to detect  a direct message from a channel message, and unfortunately slack doens't make that super awesome
@@ -278,6 +284,7 @@ func (b *Bot) startBroker() {
 				}
 				b.Unlock()
 
+				// fix the message so that it is the same no matter if the message came via DM or a channel
 				botString := "<@" + botID + ">"
 				if msgSlice[0] != botString {
 					if isChan {
@@ -293,6 +300,7 @@ func (b *Bot) startBroker() {
 				}
 
 				if msgSlice[1] == "help" {
+					// TODO: implement help using the registered Capability's and their name / description / usage
 					msg := b.rtm.NewOutgoingMessage("no help for you", ev.Channel)
 					go b.rtm.SendMessage(msg)
 					continue
@@ -339,6 +347,8 @@ func (b *Bot) startBroker() {
 					Timestamp: ev.Timestamp,
 					ThreadTs:  ev.ThreadTimestamp,
 					Payload:   ev.Text,
+					Nickname:  b.nicknameFromID(ev.User),
+					//Groups:     ev.Group, // TODO: implement
 				}
 
 				log.Println("sending Command", msg)
@@ -352,10 +362,10 @@ func (b *Bot) startBroker() {
 				}
 
 			case *slack.RTMError:
-				fmt.Printf("Error: %s\n", ev.Error())
+				log.Printf("Error: %s", ev.Error())
 
 			case *slack.InvalidAuthEvent:
-				log.Fatal("Invalid credentials")
+				log.Fatalf("Invalid credentials: %s", ev)
 
 			default:
 				// Ignore other events..
@@ -365,10 +375,19 @@ func (b *Bot) startBroker() {
 	}
 }
 
+// We want a way to return the slaslack user ID
+func (b *Bot) nicknameFromID(id string) string {
+	if u, ok := b.users.Load(id); ok {
+		return u.(slack.User).Name
+	}
+	return ""
+}
+
 func (b *Bot) idHasEmail(id, email string) bool {
-	for _, u := range b.users {
-		log.Println("User ID: " + u.ID + " email: " + u.Profile.Email)
-		if u.ID == id && u.Profile.Email == email {
+	if u, ok := b.users.Load(id); ok {
+		user := u.(slack.User)
+		log.Println("User ID: " + user.ID + " email: " + user.Profile.Email + " name: " + user.Name)
+		if user.ID == id && user.Profile.Email == email {
 			log.Println("---------------- MATCHED -----------------")
 			return true
 		}
