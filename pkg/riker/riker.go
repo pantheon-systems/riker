@@ -222,153 +222,151 @@ func (b *Bot) startBroker() {
 	var botID string
 
 	for {
-		select {
-		case msg := <-b.rtm.IncomingEvents:
-			switch ev := msg.Data.(type) {
-			case *slack.ConnectedEvent:
-				var err error
-				botID = ev.Info.User.ID
+		msg := <-b.rtm.IncomingEvents
+		switch ev := msg.Data.(type) {
+		case *slack.ConnectedEvent:
+			var err error
+			botID = ev.Info.User.ID
 
-				usersSlice, err := b.rtm.GetUsers()
-				if err != nil {
-					log.Fatal(err)
-				}
-				for _, u := range usersSlice {
-					b.users.Store(u.ID, u)
-				}
+			usersSlice, err := b.rtm.GetUsers()
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, u := range usersSlice {
+				b.users.Store(u.ID, u)
+			}
 
-				b.groups, err = b.api.GetUserGroups()
-				if err != nil {
-					log.Fatal(err)
-				}
+			b.groups, err = b.api.GetUserGroups()
+			if err != nil {
+				log.Fatal(err)
+			}
 
-				//spew.Dump(users, err)
-				log.Printf("Bot has connected!\n %+v", ev.Info.User)
+			//spew.Dump(users, err)
+			log.Printf("Bot has connected!\n %+v", ev.Info.User)
 
-			case *slack.TeamJoinEvent:
-				log.Printf("User Joined: %+v", ev.User)
-				b.users.Store(ev.User.ID, ev.User)
+		case *slack.TeamJoinEvent:
+			log.Printf("User Joined: %+v", ev.User)
+			b.users.Store(ev.User.ID, ev.User)
 
-			case *slack.MessageEvent:
-				//	spew.Dump(ev)
-				log.Printf("Message recieved: %+v", ev)
-				// ignore messages from other bots or ourself
-				if ev.BotID != "" || ev.User == botID {
+		case *slack.MessageEvent:
+			//	spew.Dump(ev)
+			log.Printf("Message recieved: %+v", ev)
+			// ignore messages from other bots or ourself
+			if ev.BotID != "" || ev.User == botID {
+				continue
+			}
+
+			if ev.Type != "message" {
+				continue
+			}
+
+			// for now strip this out and convert the text message into an array of words for easier parsing
+			msgSlice := strings.Split(ev.Text, " ")
+
+			//  we need to detect  a direct message from a channel message, and unfortunately slack doens't make that super awesome
+			b.Lock()
+			isChan, ok := b.channels[ev.Channel]
+			if !ok {
+				_, err := b.rtm.GetChannelInfo(ev.Channel)
+				if err != nil && err.Error() != "channel_not_found" {
+					log.Println("not dm not channel: ", err)
 					continue
 				}
 
-				if ev.Type != "message" {
+				if err == nil {
+					isChan = true
+				}
+
+				b.channels[ev.Channel] = isChan
+			}
+			b.Unlock()
+
+			// fix the message so that it is the same no matter if the message came via DM or a channel
+			botString := "<@" + botID + ">"
+			if msgSlice[0] != botString {
+				if isChan {
 					continue
 				}
+				// normalize the msgSlice, total garbage.. but CBF
+				msgSlice = append([]string{botString}, msgSlice...)
+			}
 
-				// for now strip this out and convert the text message into an array of words for easier parsing
-				msgSlice := strings.Split(ev.Text, " ")
+			// ignore when someone addresses us without a command
+			if len(msgSlice) < 2 {
+				continue
+			}
 
-				//  we need to detect  a direct message from a channel message, and unfortunately slack doens't make that super awesome
-				b.Lock()
-				isChan, ok := b.channels[ev.Channel]
-				if !ok {
-					_, err := b.rtm.GetChannelInfo(ev.Channel)
-					if err != nil && err.Error() != "channel_not_found" {
-						log.Println("not dm not channel: ", err)
-						continue
-					}
+			if msgSlice[1] == "help" {
+				// TODO: implement help using the registered Capability's and their name / description / usage
+				msg := b.rtm.NewOutgoingMessage("no help for you", ev.Channel)
+				go b.rtm.SendMessage(msg)
+				continue
+			}
 
-					if err == nil {
-						isChan = true
-					}
+			// match the message prefix to registered commands
+			cmdName := msgSlice[1]
+			log.Println("checking for command ", cmdName)
+			b.RLock()
+			rsReg, ok := b.redshirts[cmdName]
+			b.RUnlock()
+			if !ok {
+				msg := b.rtm.NewOutgoingMessage("Sorry, that redshirt has not repoorted for duty. I can't complete the request", ev.Channel)
+				go b.rtm.SendMessage(msg)
+				continue
+			}
 
-					b.channels[ev.Channel] = isChan
-				}
-				b.Unlock()
+			// Verify this person is allowed to run this command, cause unauthed commands are a violation of starfleet protocols.
+			log.Println("Checking user authentication", ev.User)
 
-				// fix the message so that it is the same no matter if the message came via DM or a channel
-				botString := "<@" + botID + ">"
-				if msgSlice[0] != botString {
-					if isChan {
-						continue
-					}
-					// normalize the msgSlice, total garbage.. but CBF
-					msgSlice = append([]string{botString}, msgSlice...)
-				}
-
-				// ignore when someone addresses us without a command
-				if len(msgSlice) < 2 {
-					continue
-				}
-
-				if msgSlice[1] == "help" {
-					// TODO: implement help using the registered Capability's and their name / description / usage
-					msg := b.rtm.NewOutgoingMessage("no help for you", ev.Channel)
-					go b.rtm.SendMessage(msg)
-					continue
-				}
-
-				// match the message prefix to registered commands
-				cmdName := msgSlice[1]
-				log.Println("checking for command ", cmdName)
-				b.RLock()
-				rsReg, ok := b.redshirts[cmdName]
-				b.RUnlock()
-				if !ok {
-					msg := b.rtm.NewOutgoingMessage("Sorry, that redshirt has not repoorted for duty. I can't complete the request", ev.Channel)
-					go b.rtm.SendMessage(msg)
-					continue
-				}
-
-				// Verify this person is allowed to run this command, cause unauthed commands are a violation of starfleet protocols.
-				log.Println("Checking user authentication", ev.User)
-
-				auth := false
-				for _, ua := range rsReg.cap.Auth.Users {
-					auth = b.idHasEmail(ev.User, ua)
-					if auth {
-						break
-					}
-				}
-
-				for _, ga := range rsReg.cap.Auth.Groups {
-					auth = auth || b.idInGroup(ev.User, ga)
-					if auth {
-						break
-					}
-				}
-
-				if !auth {
-					msg := b.rtm.NewOutgoingMessage("Computer reports: 'ACCESS DENIED'", ev.Channel)
-					go b.rtm.SendMessage(msg)
-					continue
-				}
-
-				msg := &botpb.Message{
-					Channel:   ev.Channel,
-					Timestamp: ev.Timestamp,
-					ThreadTs:  ev.ThreadTimestamp,
-					Payload:   ev.Text,
-					Nickname:  b.nicknameFromID(ev.User),
-					//Groups:     ev.Group, // TODO: implement
-				}
-
-				log.Println("sending Command", msg)
-				select {
-				case rsReg.queue <- msg:
-				default:
-					log.Println("Couldn't send to internal slack message queue.")
-					msg := b.rtm.NewOutgoingMessage("Sorry, redshirt supply is low. Couldn't complete your request.", ev.Channel)
-					go b.rtm.SendMessage(msg)
+			auth := false
+			for _, ua := range rsReg.cap.Auth.Users {
+				auth = b.idHasEmail(ev.User, ua)
+				if auth {
 					break
 				}
-
-			case *slack.RTMError:
-				log.Printf("Error: %s", ev.Error())
-
-			case *slack.InvalidAuthEvent:
-				log.Fatalf("Invalid credentials: %s", ev)
-
-			default:
-				// Ignore other events..
-				//				fmt.Println("Unhandled event: ", msg.Type)
 			}
+
+			for _, ga := range rsReg.cap.Auth.Groups {
+				auth = auth || b.idInGroup(ev.User, ga)
+				if auth {
+					break
+				}
+			}
+
+			if !auth {
+				msg := b.rtm.NewOutgoingMessage("Computer reports: 'ACCESS DENIED'", ev.Channel)
+				go b.rtm.SendMessage(msg)
+				continue
+			}
+
+			msg := &botpb.Message{
+				Channel:   ev.Channel,
+				Timestamp: ev.Timestamp,
+				ThreadTs:  ev.ThreadTimestamp,
+				Payload:   ev.Text,
+				Nickname:  b.nicknameFromID(ev.User),
+				//Groups:     ev.Group, // TODO: implement
+			}
+
+			log.Println("sending Command", msg)
+			select {
+			case rsReg.queue <- msg:
+			default:
+				log.Println("Couldn't send to internal slack message queue.")
+				msg := b.rtm.NewOutgoingMessage("Sorry, redshirt supply is low. Couldn't complete your request.", ev.Channel)
+				go b.rtm.SendMessage(msg)
+				break
+			}
+
+		case *slack.RTMError:
+			log.Printf("Error: %s", ev.Error())
+
+		case *slack.InvalidAuthEvent:
+			log.Fatalf("Invalid credentials: %s", ev)
+
+		default:
+			// Ignore other events..
+			//				fmt.Println("Unhandled event: ", msg.Type)
 		}
 	}
 }
