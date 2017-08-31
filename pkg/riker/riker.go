@@ -52,7 +52,7 @@ type redShirtRegistration struct {
 	cap   *botpb.Capability
 }
 
-// NewRedShirt Implemnets the riker protobuf server
+// NewRedShirt implements the riker protobuf server
 func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Registration, error) {
 	log.Println("registered client ", cap)
 
@@ -158,8 +158,6 @@ func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
 		msg.ThreadTimestamp = in.ThreadTs
 		b.rtm.SendMessage(msg)
 	}
-
-	//return nil
 }
 
 // New is the constroctor for a bot

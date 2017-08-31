@@ -32,14 +32,18 @@ redshirt-proxy \
 - should be available as docker container + linux-amd64 binary on github releases? - to make it easy to integrate into
   anyone's deployment
 
-### terminology:
+
+---------------------------------------------------------------------------------------------
+README / docs
+
+riker
+=====
+
+terminology:
 - riker: server .. the gateway/orchestrator .. message-bus for humans and robots.. gateway between slack and redshirts..
          enforces authentication and authorization of all commands ..
 - redshirt: client .. a microbot .. provider of a command namespace
 
-
--------------
-README / docs
 
 Credentials:
 - SLACK_TOKEN: Used by riker to authenticate to the Slack API
