@@ -1,6 +1,7 @@
 package riker
 
 import (
+	"crypto/tls"
 	"io"
 	"log"
 	"net"
@@ -10,9 +11,12 @@ import (
 	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/davecgh/go-spew/spew"
+	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/nlopes/slack"
+	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
 )
 
@@ -160,11 +164,34 @@ func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
 	}
 }
 
+func authOU(ctx context.Context) (context.Context, error) {
+	newCtx := context.WithValue(ctx, "foo", "bar")
+	return newCtx, nil
+}
+
 // New is the constroctor for a bot
-func New(botKey, token string) *Bot {
+func New(botKey, token, tlsFile, caFile string) *Bot {
 	// TODO: auth .. creds / server opts .. config struct FTW
-	//creds := credentials.()
-	grpcServer := grpc.NewServer()
+
+	cert, err := certutils.LoadKeyCertFiles(tlsFile, tlsFile)
+	if err != nil {
+		log.Fatalf("Could not load TLS cert '%s': %s", tlsFile, err.Error())
+	}
+	caPool, err := certutils.LoadCACertFile(caFile)
+	if err != nil {
+		log.Fatalf("Could not load CA cert '%s': %s", caFile, err.Error())
+	}
+	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
+	tlsConfig.ClientCAs = caPool
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig.Certificates = []tls.Certificate{cert}
+
+	// TODO: we should auth on OU= to restrict access from customer certs.  OU=riker-redshirt maybe.
+	grpcServer := grpc.NewServer(
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authOU)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authOU)),
+		grpc.Creds(credentials.NewTLS(tlsConfig)),
+	)
 
 	b := &Bot{
 		rtm:       slack.New(botKey).NewRTM(),

@@ -4,16 +4,20 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var okMatch = regexp.MustCompile(`OK:`)
@@ -21,7 +25,31 @@ var client botpb.RikerClient
 
 func main() {
 
-	conn, err := grpc.Dial("localhost:6000", grpc.WithInsecure())
+	// load TLS shit
+	tlsFile := os.Getenv("REDSHIRT_TLS_CERT")
+	if tlsFile == "" {
+		log.Fatal("REDSHIRT_TLS_CERT env var not set")
+	}
+	caFile := os.Getenv("REDSHIRT_CA_FILE")
+	if caFile == "" {
+		log.Fatal("REDSHIRT_CA_FILE env var not set")
+	}
+
+	cert, err := certutils.LoadKeyCertFiles(tlsFile, tlsFile)
+	if err != nil {
+		log.Fatalf("Could not load TLS cert '%s': %s", tlsFile, err.Error())
+	}
+	caPool, err := certutils.LoadCACertFile(caFile)
+	if err != nil {
+		log.Fatalf("Could not load CA cert '%s': %s", caFile, err.Error())
+	}
+	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
+	tlsConfig.ClientCAs = caPool
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig.Certificates = []tls.Certificate{cert}
+
+	// connect to riker
+	conn, err := grpc.Dial("localhost:6000", grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
 	if err != nil {
 		log.Fatal(err)
 	}

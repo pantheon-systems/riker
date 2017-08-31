@@ -15,9 +15,21 @@
 
 [[projects]]
   branch = "master"
+  name = "github.com/grpc-ecosystem/go-grpc-middleware"
+  packages = [".","auth","util/metautils"]
+  revision = "645b33ed7ba8739747bf2df55d0349d4bba2e7f6"
+
+[[projects]]
+  branch = "master"
   name = "github.com/nlopes/slack"
   packages = ["."]
   revision = "5cde21b8b96a43fc3435a1f514123d14fd7eabdc"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/pantheon-systems/go-certauth"
+  packages = ["certutils"]
+  revision = "8764720d23a5034dd9fab090815b7859463c68f6"
 
 [[projects]]
   branch = "master"
@@ -46,6 +58,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e9558aa0f5bb9643a88de9d5e127f69e3c568600d56916206490d2d3144095b4"
+  inputs-digest = "a467c35133a365199baf28b7b0282a38e19b24b1db40a28e7798338b70bbbf2e"
   solver-name = "gps-cdcl"
   solver-version = 1
