@@ -344,7 +344,9 @@ func (b *Bot) startBroker() {
 			//	spew.Dump(ev)
 			log.Printf("Message recieved: %+v", ev)
 			// ignore messages from other bots or ourself
-			if ev.BotID != "" || ev.User == botID {
+			// XXX: in order to avoid responding to the bot's own messages, it appears we need to check for an empty ev.User
+			//log.Printf("botID: %s, User: %s", ev.BotID, ev.User)
+			if ev.BotID != "" || ev.User == botID || ev.User == "" {
 				continue
 			}
 
@@ -431,12 +433,19 @@ func (b *Bot) startBroker() {
 				continue
 			}
 
+			// if this was a direct message we disabled threaded responses even if the redshirt requested
+			// threads. This is because Slack will duplicate the response in the Thread view and the direct message view.
+			threadTs := ev.ThreadTimestamp
+			if !isChan {
+				threadTs = ""
+			}
 			msg := &botpb.Message{
 				Channel:   ev.Channel,
 				Timestamp: ev.Timestamp,
-				ThreadTs:  ev.ThreadTimestamp,
-				Payload:   ev.Text,
-				Nickname:  b.nicknameFromID(ev.User),
+				ThreadTs:  threadTs,
+
+				Payload:  ev.Text,
+				Nickname: b.nicknameFromID(ev.User),
 				//Groups:     ev.Group, // TODO: implement
 			}
 

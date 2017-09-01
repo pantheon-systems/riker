@@ -17,8 +17,9 @@ Tasks:
 - [ ] Deploy Riker, and redshirt army
 - [x] Figure out auth riker<-->redshirt
     we'll use mTLS
-- [ ] document how to use the language-agnostic interface/adapter thingy so that other eng team's can build redshirts
-- [ ] riker-proxy/lieutenant wrapper app
+- [ ] document how to use the language-agnostic proxy/lieutenant/interface/adapter thingy so that other eng team's can build redshirts
+- [ ] riker-proxy/lieutenant wrapper/adapter app
+- [ ] fix bug where, when using private chat, you get both a direct response and threaded response from riker
 
 
 ### riker-proxy/lieutenant
