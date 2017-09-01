@@ -2,6 +2,8 @@ package riker
 
 import (
 	"crypto/tls"
+	"crypto/x509/pkix"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -11,7 +13,9 @@ import (
 	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 
 	"github.com/davecgh/go-spew/spew"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -164,15 +168,68 @@ func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
 	}
 }
 
+// intersectArrays returns true when there is at least one element in common between the two arrays
+func intersectArrays(orig, tgt []string) bool {
+	for _, i := range orig {
+		for _, x := range tgt {
+			if i == x {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// tlsConnStateFromContext extracts the client (peer) tls connectionState from a context
+func tlsConnStateFromContext(ctx context.Context) (*tls.ConnectionState, error) {
+	peer, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, grpc.Errorf(codes.PermissionDenied, "Permission denied: no peer info")
+	}
+	tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return nil, grpc.Errorf(codes.PermissionDenied, "Permission denied: peer didn't not present valid peer certificate")
+	}
+	return &tlsInfo.State, nil
+}
+
+// getCertificateSubject extracts the subject from a verified client certificate
+func getCertificateSubject(tlsState *tls.ConnectionState) (pkix.Name, error) {
+	if tlsState == nil {
+		return pkix.Name{}, grpc.Errorf(codes.PermissionDenied, "request is not using TLS")
+	}
+	if len(tlsState.PeerCertificates) == 0 {
+		return pkix.Name{}, grpc.Errorf(codes.PermissionDenied, "no client certificates in request")
+	}
+	if len(tlsState.VerifiedChains) == 0 {
+		return pkix.Name{}, grpc.Errorf(codes.PermissionDenied, "no verified chains for remote certificate")
+	}
+
+	return tlsState.VerifiedChains[0][0].Subject, nil
+}
+
 func authOU(ctx context.Context) (context.Context, error) {
-	newCtx := context.WithValue(ctx, "foo", "bar")
-	return newCtx, nil
+	tlsState, err := tlsConnStateFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	clientCert, err := getCertificateSubject(tlsState)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Printf("authOU: client CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
+	if intersectArrays(clientCert.OrganizationalUnit, []string{"riker-redshirt"}) {
+		return ctx, nil
+	}
+	msg := fmt.Sprintf("client cert OU '%s' is not allowed", clientCert.OrganizationalUnit)
+	log.Printf("authOU: client cert failed authentication. CN=%s, err=%s", clientCert.CommonName, msg)
+	return nil, grpc.Errorf(codes.PermissionDenied, msg)
 }
 
 // New is the constroctor for a bot
 func New(botKey, token, tlsFile, caFile string) *Bot {
-	// TODO: auth .. creds / server opts .. config struct FTW
-
 	cert, err := certutils.LoadKeyCertFiles(tlsFile, tlsFile)
 	if err != nil {
 		log.Fatalf("Could not load TLS cert '%s': %s", tlsFile, err.Error())
@@ -186,7 +243,6 @@ func New(botKey, token, tlsFile, caFile string) *Bot {
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	tlsConfig.Certificates = []tls.Certificate{cert}
 
-	// TODO: we should auth on OU= to restrict access from customer certs.  OU=riker-redshirt maybe.
 	grpcServer := grpc.NewServer(
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authOU)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authOU)),
@@ -268,8 +324,7 @@ func (b *Bot) startBroker() {
 				log.Fatal(err)
 			}
 
-			//spew.Dump(users, err)
-			log.Printf("Bot has connected!\n %+v", ev.Info.User)
+			log.Printf("Bot has connected! %+v", ev.Info.User)
 
 		case *slack.TeamJoinEvent:
 			log.Printf("User Joined: %+v", ev.User)
