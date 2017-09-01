@@ -1,6 +1,8 @@
 - Could allow redshirts to register on events as well as commands, or commands to events.
   in this mode we could passthrough  the slack event to the redshirt..
 
+- [ ] factor out the gRPC authOU and related funcs into our go-certauth lib? They're similar in spirit
+
 ---------------------------------------------------------------------------------------------
 https://getpantheon.atlassian.net/browse/IO-2612
 "CSE.py actions available securely in Slack"
@@ -14,7 +16,7 @@ Done when:
 Tasks:
 - [ ] Deploy Riker, and redshirt army
 - [x] Figure out auth riker<-->redshirt
-    we'll use mTLS -- maybe not, maybe we just make this a private cluster service for now without auth
+    we'll use mTLS
 - [ ] document how to use the language-agnostic interface/adapter thingy so that other eng team's can build redshirts
 - [ ] riker-proxy/lieutenant wrapper app
 

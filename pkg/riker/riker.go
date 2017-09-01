@@ -3,7 +3,6 @@ package riker
 import (
 	"crypto/tls"
 	"crypto/x509/pkix"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -30,6 +29,9 @@ var allowedOUs = []string{
 	"riker-server",
 	"titan",
 }
+
+// clientCertKey is the context key where the client mTLS cert (pkix.Name) is stored
+type clientCertKey struct{}
 
 type rikerError string
 
@@ -215,6 +217,8 @@ func getCertificateSubject(tlsState *tls.ConnectionState) (pkix.Name, error) {
 	return tlsState.VerifiedChains[0][0].Subject, nil
 }
 
+// authOU extracts the client mTLS cert from a context and verifies the client cert OU is in the list of
+// allowedOUs. It returns an error if the client is not permitted.
 func authOU(ctx context.Context) (context.Context, error) {
 	tlsState, err := tlsConnStateFromContext(ctx)
 	if err != nil {
@@ -225,14 +229,13 @@ func authOU(ctx context.Context) (context.Context, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	log.Printf("authOU: client CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
+
 	if intersectArrays(clientCert.OrganizationalUnit, allowedOUs) {
-		return ctx, nil
+		return context.WithValue(ctx, clientCertKey{}, clientCert), nil
 	}
-	msg := fmt.Sprintf("client cert OU '%s' is not allowed", clientCert.OrganizationalUnit)
-	log.Printf("authOU: client cert failed authentication. CN=%s, err=%s", clientCert.CommonName, msg)
-	return nil, grpc.Errorf(codes.PermissionDenied, msg)
+	log.Printf("authOU: client cert failed authentication. CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
+	return nil, grpc.Errorf(codes.PermissionDenied, "client cert OU '%s' is not allowed", clientCert.OrganizationalUnit)
 }
 
 // New is the constroctor for a bot
