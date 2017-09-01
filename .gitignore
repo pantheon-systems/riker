@@ -1,3 +1,7 @@
 /riker
 vendor/*
 .envrc
+
+*.crt
+*.cert
+*.pem

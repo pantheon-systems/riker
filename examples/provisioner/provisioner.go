@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/tls"
 	"fmt"
 	"io"
 	"log"
@@ -14,10 +13,8 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	"github.com/pantheon-systems/riker/pkg/redshirt"
 )
 
 var okMatch = regexp.MustCompile(`OK:`)
@@ -35,21 +32,8 @@ func main() {
 		log.Fatal("REDSHIRT_CA_FILE env var not set")
 	}
 
-	cert, err := certutils.LoadKeyCertFiles(tlsFile, tlsFile)
-	if err != nil {
-		log.Fatalf("Could not load TLS cert '%s': %s", tlsFile, err.Error())
-	}
-	caPool, err := certutils.LoadCACertFile(caFile)
-	if err != nil {
-		log.Fatalf("Could not load CA cert '%s': %s", caFile, err.Error())
-	}
-	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
-	tlsConfig.ClientCAs = caPool
-	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	tlsConfig.Certificates = []tls.Certificate{cert}
-
 	// connect to riker
-	conn, err := grpc.Dial("localhost:6000", grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)))
+	conn, err := redshirt.NewTLSConnection("localhost:6000", tlsFile, caFile)
 	if err != nil {
 		log.Fatal(err)
 	}
