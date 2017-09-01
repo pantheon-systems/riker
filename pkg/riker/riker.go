@@ -24,6 +24,13 @@ import (
 	"github.com/pantheon-systems/riker/pkg/botpb"
 )
 
+// TODO: move this into config infrastructure. client certs must contain one of these OUs to connect
+var allowedOUs = []string{
+	"riker-redshirt",
+	"riker-server",
+	"titan",
+}
+
 type rikerError string
 
 func (e rikerError) Error() string {
@@ -220,7 +227,7 @@ func authOU(ctx context.Context) (context.Context, error) {
 	}
 
 	log.Printf("authOU: client CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
-	if intersectArrays(clientCert.OrganizationalUnit, []string{"riker-redshirt"}) {
+	if intersectArrays(clientCert.OrganizationalUnit, allowedOUs) {
 		return ctx, nil
 	}
 	msg := fmt.Sprintf("client cert OU '%s' is not allowed", clientCert.OrganizationalUnit)
