@@ -63,7 +63,7 @@ type Bot struct {
 	grpc     *grpc.Server
 }
 
-// holds info on a connected client so we can send it data
+// holds info on a connected client (redshirt) so we can send it data
 type redShirtRegistration struct {
 	queue chan *botpb.Message
 	cap   *botpb.Capability
@@ -81,10 +81,10 @@ func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Re
 		CapabilityApplied: true,
 	}
 
-	spew.Dump(b.redshirts)
+	spew.Dump(b.redshirts) // TODO: remove debug spew
 	// we want to register commands if they are requesting a force registration, othewise it should error
 	if reg, ok := b.redshirts[cap.Name]; ok {
-		spew.Dump(b.redshirts)
+		spew.Dump(b.redshirts) // TODO: remove debug spew
 		if !cap.ForcedRegistration {
 			resp.CapabilityApplied = false
 			return resp, nil
@@ -446,7 +446,7 @@ func (b *Bot) startBroker() {
 
 				Payload:  ev.Text,
 				Nickname: b.nicknameFromID(ev.User),
-				//Groups:     ev.Group, // TODO: implement
+				//Groups:     ev.Group, // TODO: implement sending a list of the user's groups to the redshirt if it wants to make more complicated authz decisions
 			}
 
 			log.Println("sending Command", msg)

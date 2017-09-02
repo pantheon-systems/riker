@@ -19,7 +19,10 @@ Tasks:
     we'll use mTLS
 - [ ] document how to use the language-agnostic proxy/lieutenant/interface/adapter thingy so that other eng team's can build redshirts
 - [ ] riker-proxy/lieutenant wrapper/adapter app
-- [ ] fix bug where, when using private chat, you get both a direct response and threaded response from riker
+- [x] fix bug where, when using private chat, you get both a direct response and threaded response from riker
+- [ ] bug: riker does not realize when a redshirt disconnects. It should remove disconnected clients from the b.redshirts map.
+-   Upon reconnect, any new user/group perms will not take effect which can cause problems.
+  - (joe): for now i worked around this in cli-wrapper by setting ForcedRegistation: true, since most use cases are singleton redshirts
 
 
 ### riker-proxy/lieutenant
