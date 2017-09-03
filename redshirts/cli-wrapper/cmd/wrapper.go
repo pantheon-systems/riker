@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/davecgh/go-spew/spew"
 	linereader "github.com/mitchellh/go-linereader"
 	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
@@ -192,7 +191,6 @@ func wrapCmd(cmd *cobra.Command, args []string) error {
 	}
 	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
 	tlsConfig.ClientCAs = caPool
-	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	tlsConfig.Certificates = []tls.Certificate{cert}
 
 	// connect to riker
@@ -247,7 +245,7 @@ func wrapCmd(cmd *cobra.Command, args []string) error {
 			log.Fatalf("error reading message from riker: %+v = %v", client, err)
 		}
 
-		log.Printf("Got message: %+v\n", msg)
+		log.Printf("Got message from riker: %+v\n", msg)
 		fields := strings.Fields(msg.Payload)
 
 		// buld up the command and the args from the passed in cmd
@@ -261,8 +259,6 @@ func wrapCmd(cmd *cobra.Command, args []string) error {
 			Timestamp: msg.Timestamp,
 			ThreadTs:  msg.Timestamp,
 		}
-
-		spew.Dump(reply)
 
 		c := exec.Cmd{
 			Path: command,
