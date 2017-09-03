@@ -327,7 +327,7 @@ func runCmd(reply *botpb.Message, c exec.Cmd) {
 
 	if err = c.Wait(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
-			reply.Payload = "Command exit with status code > 0:\n ```" + stderrCopy.String() + "```"
+			reply.Payload = "Command exit with status code > 0:\n ```" + strings.Join(lines, "\n") + "```"
 			sendMsg(reply)
 			reply.ThreadTs = ""
 			reply.Timestamp = ""
@@ -339,7 +339,7 @@ func runCmd(reply *botpb.Message, c exec.Cmd) {
 func sendMsg(msg *botpb.Message) {
 	resp, err := client.Send(context.Background(), msg)
 	if err != nil {
-		log.Println("Error sending: ", err)
+		log.Println("Error sending message to riker: ", err)
 	}
 	log.Println("Sent!!! ", resp)
 }
