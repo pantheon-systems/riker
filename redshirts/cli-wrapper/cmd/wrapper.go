@@ -15,7 +15,6 @@
 package cmd
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -33,6 +32,7 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/davecgh/go-spew/spew"
+	linereader "github.com/mitchellh/go-linereader"
 	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
 	"github.com/spf13/cobra"
@@ -289,47 +289,44 @@ func runCmd(reply *botpb.Message, c exec.Cmd) {
 		return
 	}
 
-	// reply.Payload = "Starting provision with args: ```" + strings.Join(c.Args, " ") + "```"
-	// sendMsg(reply)
-
-	lines := make([]string, 200)
-	// recieve line
-	// set timer
-	// if we get data before timer expires
-	// reset timer
-	// if timer expires if buffer >= max msg size, flush
-	r := bufio.NewReader(combined)
+	// buffer & flush algorithm
+	// buffer up the line-oriented output from the command as a slice of strings, then
+	// send all lines in the buffer whenever 10 lines of output is accumulated,
+	// or 2 seconds of time passes
+	// TODO: should we make this configurable? eg: time-flush=2s, lines-flush=10
+	lines := []string{}
+	lr := linereader.New(combined)
 	for {
-		line, _, err := r.ReadLine()
-		if err != nil {
-			if err == io.EOF {
-				if len(lines) > 0 {
-					reply.Payload = "```" + strings.Join(lines, "") + "```"
-					sendMsg(reply)
-				}
-				break
-			}
+		brk := false
+		flush := false
 
-			reply.Payload = "Error reading output: ```" + err.Error() + "```\n While Processing: ```" + string(line) + "```"
-			sendMsg(reply)
-			break
+		select {
+		case line, ok := <-lr.Ch:
+			if !ok {
+				brk = true
+			}
+			if line != "" {
+				lines = append(lines, line)
+			}
+		case <-time.After(2 * time.Second):
+			flush = true
 		}
 
-		fmt.Print(string(line))
-		lines = append(lines, string(line))
-
-		if len(lines) >= 5 {
-			reply.Payload = "```" + strings.Join(lines, "") + "```"
+		if len(lines) > 10 {
+			flush = true
+		}
+		if flush && len(lines) > 0 {
+			reply.Payload = "```" + strings.Join(lines, "\n") + "```"
 			sendMsg(reply)
 			lines = lines[:0]
 		}
-		//		if okMatch.Match(line) {
-		//		}
+		if brk {
+			break
+		}
 	}
 
 	if err = c.Wait(); err != nil {
 		if _, ok := err.(*exec.ExitError); ok {
-			// The program has exited with an exit code != 0
 			reply.Payload = "Command exit with status code > 0:\n ```" + stderrCopy.String() + "```"
 			sendMsg(reply)
 			reply.ThreadTs = ""

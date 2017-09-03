@@ -29,4 +29,6 @@ Example "echo server":
 		-command "/bin/echo"
 ```
 
+TODO: document the env vars, since this might be more common way to exec in kube?
+
 TODO: example deploy to kubernetes (yaml ..)
