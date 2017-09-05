@@ -252,6 +252,7 @@ func New(botKey, token, tlsFile, caFile string) *Bot {
 	tlsConfig.ClientCAs = caPool
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	tlsConfig.Certificates = []tls.Certificate{cert}
+	// TODO: use CertReloader from certutils
 
 	grpcServer := grpc.NewServer(
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authOU)),
@@ -334,7 +335,7 @@ func (b *Bot) startBroker() {
 				log.Fatal(err)
 			}
 
-			log.Printf("Bot has connected! %+v", ev.Info.User)
+			log.Printf("Riker has connected to Slack! %+v", ev.Info.User)
 
 		case *slack.TeamJoinEvent:
 			log.Printf("User Joined: %+v", ev.User)
@@ -342,7 +343,6 @@ func (b *Bot) startBroker() {
 
 		case *slack.MessageEvent:
 			//	spew.Dump(ev)
-			log.Printf("Message recieved: %+v", ev)
 			// ignore messages from other bots or ourself
 			// XXX: in order to avoid responding to the bot's own messages, it appears we need to check for an empty ev.User
 			//log.Printf("botID: %s, User: %s", ev.BotID, ev.User)
@@ -353,6 +353,8 @@ func (b *Bot) startBroker() {
 			if ev.Type != "message" {
 				continue
 			}
+
+			log.Printf("Message recieved: %+v", ev)
 
 			// for now strip this out and convert the text message into an array of words for easier parsing
 			msgSlice := strings.Split(ev.Text, " ")
