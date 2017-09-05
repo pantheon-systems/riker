@@ -8,12 +8,14 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 
 	"github.com/davecgh/go-spew/spew"
@@ -56,6 +58,7 @@ type Bot struct {
 	groups []slack.UserGroup
 
 	// redshirts holds state of commands that map to client registrations
+	// TODO: this should convert over to sync.Map as well
 	redshirts map[string]*redShirtRegistration
 	*sync.RWMutex
 
@@ -81,10 +84,8 @@ func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Re
 		CapabilityApplied: true,
 	}
 
-	spew.Dump(b.redshirts) // TODO: remove debug spew
 	// we want to register commands if they are requesting a force registration, othewise it should error
 	if reg, ok := b.redshirts[cap.Name]; ok {
-		spew.Dump(b.redshirts) // TODO: remove debug spew
 		if !cap.ForcedRegistration {
 			resp.CapabilityApplied = false
 			return resp, nil
@@ -254,7 +255,19 @@ func New(botKey, token, tlsFile, caFile string) *Bot {
 	tlsConfig.Certificates = []tls.Certificate{cert}
 	// TODO: use CertReloader from certutils
 
+	k := keepalive.ServerParameters{
+		// After a duration of this time if the server doesn't see any activity it pings the client to see if the transport is still alive.
+		// The grpc default value is 2 hours.
+		Time: 3 * time.Second,
+
+		// After having pinged for keepalive check, the server waits for a duration of Timeout and if no activity is seen even after that
+		// the connection is closed.
+		// The grpc default value is 20 seconds.
+		Timeout: 15 * time.Second,
+	}
+
 	grpcServer := grpc.NewServer(
+		grpc.KeepaliveParams(k),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authOU)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authOU)),
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
