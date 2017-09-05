@@ -34,6 +34,7 @@ import (
 	linereader "github.com/mitchellh/go-linereader"
 	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
+	"github.com/pantheon-systems/riker/redshirts/cli-wrapper/pkg/cert"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -153,6 +154,7 @@ func init() {
 }
 
 func validateArgs(cmd *cobra.Command, args []string) error {
+	log.Println("addr:", addr)
 	if addr == "" {
 		return errors.New("missing --addr")
 	}
@@ -177,11 +179,17 @@ func validateArgs(cmd *cobra.Command, args []string) error {
 
 // initConfig reads ENV variables if set.
 func initConfig() {
+	viper.SetEnvPrefix("REDSHIRT_")
+	// TODO: i don't think this is working
 	viper.AutomaticEnv()
 }
 
 func wrapCmd(cmd *cobra.Command, args []string) error {
-	cert, err := certutils.LoadKeyCertFiles(certFile, certFile)
+	// cert, err := certutils.LoadKeyCertFiles(certFile, certFile)
+	// if err != nil {
+	// 	log.Fatalf("Could not load TLS cert '%s': %s", certFile, err.Error())
+	// }
+	cm, err := cert.NewCertificateManager(certFile, certFile)
 	if err != nil {
 		log.Fatalf("Could not load TLS cert '%s': %s", certFile, err.Error())
 	}
@@ -189,9 +197,13 @@ func wrapCmd(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		log.Fatalf("Could not load CA cert '%s': %s", caFile, err.Error())
 	}
-	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
+	//tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
+	tlsConfig := &tls.Config{
+		GetClientCertificate: cm.GetClientCertificate,
+	}
 	tlsConfig.ClientCAs = caPool
-	tlsConfig.Certificates = []tls.Certificate{cert}
+	//tlsConfig.GetCertificate = cm.GetCertificate
+	//tlsConfig.Certificates = []tls.Certificate{cert}
 
 	// connect to riker
 	conn, err := grpc.Dial(addr,
