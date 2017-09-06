@@ -38,8 +38,10 @@ https://getpantheon.atlassian.net/browse/IO-2612
 
 ### CLI wrapper
 - [ ] positional command vs flag
-- [ ] Break CLI wrapper redshirt to own repo.
+- [x] Break CLI wrapper redshirt to own repo.
 - [ ] document how to use so other eng team's can build redshirts
+- [ ] cse.py MVP
+  - [ ] TODO: break this down into more todos...
 
 ### riker-proxy/lieutenant
 ```

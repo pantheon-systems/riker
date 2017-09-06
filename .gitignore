@@ -4,3 +4,4 @@ vendor/*
 *.crt
 *.cert
 *.pem
+riker.key
