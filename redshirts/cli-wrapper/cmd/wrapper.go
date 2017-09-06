@@ -30,6 +30,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 
 	linereader "github.com/mitchellh/go-linereader"
 	"github.com/pantheon-systems/go-certauth/certutils"
@@ -201,14 +202,18 @@ func wrapCmd(cmd *cobra.Command, args []string) error {
 	tlsConfig := &tls.Config{
 		GetClientCertificate: cm.GetClientCertificate,
 	}
-	tlsConfig.ClientCAs = caPool
-	//tlsConfig.GetCertificate = cm.GetCertificate
-	//tlsConfig.Certificates = []tls.Certificate{cert}
+	tlsConfig.RootCAs = caPool
 
 	// connect to riker
+	log.Println("Trying to connect to riker at ", addr)
 	conn, err := grpc.Dial(addr,
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    30 * time.Second,
+			Timeout: 5 * time.Second,
+		}),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithBackoffMaxDelay(1*time.Second),
+		grpc.WithBlock(), // Blocking on connect is ok here
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -232,29 +237,25 @@ func wrapCmd(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	reg, err := client.NewRedShirt(context.Background(), cap)
-	if err != nil {
-		log.Fatal("Failed creating the redshirt: ", err.Error())
-	}
-
-	if reg.CapabilityApplied {
-		log.Printf("Rejoice we are the first instance to register namespace '%s'.", namespace)
-	} else {
-		log.Printf("Starting up as another namespace '%s' minion.", namespace)
-	}
-
-	stream, err := client.CommandStream(context.Background(), reg)
-	if err != nil {
-		log.Fatal("Error talking to riker: ", err)
-	}
-
+	stream := registerClient(cap)
 	for {
+		if stream == nil {
+			stream = registerClient(cap)
+			if stream == nil {
+				time.Sleep(3 * time.Second)
+			}
+			continue
+		}
+
 		msg, err := stream.Recv()
 		if err == io.EOF {
 			continue
 		}
 		if err != nil {
-			log.Fatalf("error reading message from riker: %+v = %v", client, err)
+			log.Printf("error reading message from riker: %+v = %v", client, err)
+			stream = nil
+			continue
+			// TODO
 		}
 
 		log.Printf("Got message from riker: %+v\n", msg)
@@ -342,6 +343,27 @@ func runCmd(reply *botpb.Message, c exec.Cmd) {
 			sendMsg(reply)
 		}
 	}
+}
+
+func registerClient(cap *botpb.Capability) botpb.Riker_CommandStreamClient {
+	reg, err := client.NewRedShirt(context.Background(), cap)
+	if err != nil {
+		log.Println("Failed creating the redshirt: ", err.Error())
+		return nil
+	}
+
+	if reg.CapabilityApplied {
+		log.Printf("Rejoice we are the first instance to register namespace '%s'.", namespace)
+	} else {
+		log.Printf("Starting up as another namespace '%s' minion.", namespace)
+	}
+
+	stream, err := client.CommandStream(context.Background(), reg)
+	if err != nil {
+		log.Println("Error talking to riker: ", err)
+	}
+
+	return stream
 }
 
 func sendMsg(msg *botpb.Message) {
