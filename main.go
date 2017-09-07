@@ -5,13 +5,14 @@ import (
 
 	"log"
 
-	"github.com/pantheon-systems/riker/pkg/riker"
+	"github.com/pantheon-systems/riker/pkg/chat/slackbot"
+	"github.com/pantheon-systems/riker/pkg/chat/terminalbot"
 )
 
 func main() {
 	cli := os.Getenv("RIKER_TERMINAL_MODE")
 	if cli != "" {
-		b := riker.NewTerminal("localhost:6000")
+		b := terminalbot.New("localhost:6000")
 		b.Run()
 	}
 
@@ -35,6 +36,6 @@ func main() {
 		log.Fatal("RIKER_CA_FILE env var not set")
 	}
 
-	b := riker.NewSlackBot(botKey, oauthToken, tlsFile, caFile)
+	b := slackbot.New(botKey, oauthToken, tlsFile, caFile)
 	b.Run()
 }
