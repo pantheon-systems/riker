@@ -26,10 +26,12 @@ https://getpantheon.atlassian.net/browse/IO-2612
 
 ## Short Term:
 ### Riker Server
-- [ ] bug: riker does not realize when a redshirt disconnects. It should remove disconnected clients from the b.redshirts map.
+- [x] bug: riker does not realize when a redshirt disconnects. It should remove disconnected clients from the b.redshirts map.
 -   Upon reconnect, any new user/group perms will not take effect which can cause problems.
   - (joe): for now i worked around this in cli-wrapper by setting ForcedRegistation: true, since most use cases are singleton redshirts
-- [ ] Remove forced registration, and use simple always-apply approach for now.
+	- Jesse: calling this done per 96cb864. the map doesn't track clients, and the agreed upon last registration wins for updating the capabilities.
+- [x] Remove forced registration, and use simple always-apply approach for now.
+	- Jesse: done in 96cb864
 - [ ] Cobrafication /  config file
 - [ ] Deploy Riker, and redshirt army
 - [x] Figure out auth riker<-->redshirt
