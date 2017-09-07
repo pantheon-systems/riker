@@ -5,3 +5,5 @@ vendor/*
 *.cert
 *.pem
 riker.key
+
+.DS_Store

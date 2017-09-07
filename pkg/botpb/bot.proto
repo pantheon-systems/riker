@@ -51,20 +51,6 @@ message Capability {
 	string description = 3;
 
 	CommandAuth auth = 4;
-
-	bool forced_registration = 5;
-	// bffersize
-	// 0 ... 100
-	enum bufferconfig {
-		// If unbuffered is chosen and the redshirt doesn't have an open stream, messages will fail
-		UNBUFFERED = 0;
-
-		// these are mesage queue depths both CommandStream and NextCommand will use it.
-		SMALL = 10;
-		MEDIUM = 50;
-		LARGE = 100;
-	}
-	bufferconfig buffer_size = 6;
 }
 
 // this is a simple response

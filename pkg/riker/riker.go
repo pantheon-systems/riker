@@ -29,7 +29,7 @@ import (
 var allowedOUs = []string{
 	"riker-redshirt",
 	"riker-server",
-	"titan",
+	"riker",
 }
 
 // clientCertKey is the context key where the client mTLS cert (pkix.Name) is stored
@@ -41,12 +41,20 @@ func (e rikerError) Error() string {
 	return string(e)
 }
 
-// ErrorAlreadyRegistered is returned when a registration attempt is made for an
-// already existing command and the Capability deosn't specify forced registration
-const ErrorAlreadyRegistered = rikerError("Already registered")
+const (
+	// ErrorAlreadyRegistered is returned when a registration attempt is made for an
+	// already existing command and the Capability deosn't specify forced registration
+	ErrorAlreadyRegistered = rikerError("Already registered")
 
-// ErrorNotRegistered is returned when a client making a request request is not registered.
-const ErrorNotRegistered = rikerError("Not registered")
+	// ErrorNotRegistered is returned when a client making a request request is not registered.
+	ErrorNotRegistered = rikerError("Not registered")
+
+	// ErrorInternalServer is a Generic failure on the server side while trying to process a client (usually a registration)
+	ErrorInternalServer = rikerError("Unable to complete request")
+
+	// RedshirtBacklogSize is the redshirt message queue buffer size. how many messages we will backlog for a registerd command
+	RedshirtBacklogSize = uint32(20)
+)
 
 // Bot is the bot
 type Bot struct {
@@ -58,8 +66,7 @@ type Bot struct {
 	groups []slack.UserGroup
 
 	// redshirts holds state of commands that map to client registrations
-	// TODO: this should convert over to sync.Map as well
-	redshirts map[string]*redShirtRegistration
+	redshirts map[string]*redshirtRegistration
 	*sync.RWMutex
 
 	channels map[string]bool
@@ -67,16 +74,15 @@ type Bot struct {
 }
 
 // holds info on a connected client (redshirt) so we can send it data
-type redShirtRegistration struct {
-	queue chan *botpb.Message
-	cap   *botpb.Capability
+type redshirtRegistration struct {
+	queue      chan *botpb.Message
+	capability *botpb.Capability
 }
 
 // NewRedShirt implements the riker protobuf server
 func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Registration, error) {
-	log.Println("registered client ", cap)
-
-	// map is not goroutine safe
+	log.Println("Registering client ", cap)
+	// map is not goroutine safe, and sync.Map runtime shennanigans are un paletable
 	b.Lock()
 	defer b.Unlock()
 	resp := &botpb.Registration{
@@ -84,27 +90,16 @@ func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Re
 		CapabilityApplied: true,
 	}
 
-	// we want to register commands if they are requesting a force registration, othewise it should error
-	if reg, ok := b.redshirts[cap.Name]; ok {
-		if !cap.ForcedRegistration {
-			resp.CapabilityApplied = false
-			return resp, nil
-		}
-
-		// this should signal all existing write pumps to clients from the commandStream to shutdown and return.
-		close(reg.queue)
-		reg.queue = make(chan *botpb.Message, int32(cap.BufferSize))
-
-		// we want newest clients registering with force to apply their capailities
-		// so that it makes it easier for them to upgrade themselves.
-		reg.cap = cap
+	// Check for registration. If it already exists apply the registrations capabilities to it
+	if r, ok := b.redshirts[cap.Name]; ok {
+		r.capability = cap
 		return resp, nil
 	}
 
-	// Happy path? comand isn't registered
-	reg := redShirtRegistration{}
-	reg.cap = cap
-	reg.queue = make(chan *botpb.Message, int32(cap.BufferSize))
+	// New registration so we should cary on
+	reg := redshirtRegistration{}
+	reg.queue = make(chan *botpb.Message, RedshirtBacklogSize)
+	reg.capability = cap
 	b.redshirts[cap.Name] = &reg
 
 	return resp, nil
@@ -249,11 +244,11 @@ func New(botKey, token, tlsFile, caFile string) *Bot {
 	if err != nil {
 		log.Fatalf("Could not load CA cert '%s': %s", caFile, err.Error())
 	}
+	// TODO: use CertReloader from certutils
 	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
 	tlsConfig.ClientCAs = caPool
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	tlsConfig.Certificates = []tls.Certificate{cert}
-	// TODO: use CertReloader from certutils
 
 	k := keepalive.ServerParameters{
 		// After a duration of this time if the server doesn't see any activity it pings the client to see if the transport is still alive.
@@ -278,7 +273,7 @@ func New(botKey, token, tlsFile, caFile string) *Bot {
 		api:       slack.New(token),
 		name:      "riker",
 		grpc:      grpcServer,
-		redshirts: make(map[string]*redShirtRegistration, 10),
+		redshirts: make(map[string]*redshirtRegistration, 10),
 		channels:  make(map[string]bool, 100),
 	}
 	b.RWMutex = &sync.RWMutex{}
@@ -428,14 +423,14 @@ func (b *Bot) startBroker() {
 			log.Println("Checking user authentication", ev.User)
 
 			auth := false
-			for _, ua := range rsReg.cap.Auth.Users {
+			for _, ua := range rsReg.capability.Auth.Users {
 				auth = b.idHasEmail(ev.User, ua)
 				if auth {
 					break
 				}
 			}
 
-			for _, ga := range rsReg.cap.Auth.Groups {
+			for _, ga := range rsReg.capability.Auth.Groups {
 				auth = auth || b.idInGroup(ev.User, ga)
 				if auth {
 					break
