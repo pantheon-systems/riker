@@ -39,8 +39,9 @@ https://getpantheon.atlassian.net/browse/IO-2612
 - [x] fix bug where, when using private chat, you get both a direct response and threaded response from riker
 
 ### CLI wrapper
-- [ ] positional command vs flag
+- [x] positional command vs flag
 - [x] Break CLI wrapper redshirt to own repo.
+  - [ ] figure out how to make the circlebuild work (issue with riker private repo right now)
 - [ ] document how to use so other eng team's can build redshirts
 - [ ] cse.py MVP
   - [ ] TODO: break this down into more todos...
