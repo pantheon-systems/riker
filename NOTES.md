@@ -11,8 +11,6 @@ TODO:
 	* in pantheon or own org ?
 	* License? (APL2 likely because we are using some APL code)
 - [ ] External state
-- [ ] Consenus based redshirt registration (versioned capabilities)
-
 
 ---------------------------------------------------------------------------------------------
 https://getpantheon.atlassian.net/browse/IO-2612
