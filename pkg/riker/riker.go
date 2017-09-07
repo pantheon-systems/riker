@@ -56,8 +56,13 @@ const (
 	RedshirtBacklogSize = uint32(20)
 )
 
+type Bot interface {
+	Run()
+	botpb.RikerServer
+}
+
 // Bot is the bot
-type Bot struct {
+type SlackBot struct {
 	name string
 	rtm  *slack.RTM
 	api  *slack.Client
@@ -80,7 +85,7 @@ type redshirtRegistration struct {
 }
 
 // NewRedShirt implements the riker protobuf server
-func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Registration, error) {
+func (b *SlackBot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Registration, error) {
 	log.Println("Registering client ", cap)
 	// map is not goroutine safe, and sync.Map runtime shennanigans are un paletable
 	b.Lock()
@@ -106,7 +111,7 @@ func (b *Bot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Re
 }
 
 // NextCommand is the call a client makes to pull the next command from rikers command buffer
-func (b *Bot) NextCommand(ctx context.Context, reg *botpb.Registration) (*botpb.Message, error) {
+func (b *SlackBot) NextCommand(ctx context.Context, reg *botpb.Registration) (*botpb.Message, error) {
 	// TODO: CommandStream and this method do the same registration checking, could be refactored if we do it more than this.
 	b.RLock()
 	rs, ok := b.redshirts[reg.Name]
@@ -124,7 +129,7 @@ func (b *Bot) NextCommand(ctx context.Context, reg *botpb.Registration) (*botpb.
 }
 
 // CommandStream is the call a client makes to setup a Push stream from riker -> client
-func (b *Bot) CommandStream(reg *botpb.Registration, stream botpb.Riker_CommandStreamServer) error {
+func (b *SlackBot) CommandStream(reg *botpb.Registration, stream botpb.Riker_CommandStreamServer) error {
 	b.RLock()
 	rs, ok := b.redshirts[reg.Name]
 	b.RUnlock()
@@ -148,7 +153,7 @@ func (b *Bot) CommandStream(reg *botpb.Registration, stream botpb.Riker_CommandS
 }
 
 // Send is the call a client makes to send a message back to riker
-func (b *Bot) Send(ctx context.Context, msg *botpb.Message) (*botpb.SendResponse, error) {
+func (b *SlackBot) Send(ctx context.Context, msg *botpb.Message) (*botpb.SendResponse, error) {
 	m := b.rtm.NewOutgoingMessage(msg.Payload, msg.Channel)
 	m.ThreadTimestamp = msg.ThreadTs
 	b.rtm.SendMessage(m)
@@ -156,7 +161,7 @@ func (b *Bot) Send(ctx context.Context, msg *botpb.Message) (*botpb.SendResponse
 }
 
 // SendStream is the call a client makes to send a stream message back to riker
-func (b *Bot) SendStream(stream botpb.Riker_SendStreamServer) error {
+func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 	// pump for messages to slack
 	for {
 		in, err := stream.Recv()
@@ -235,7 +240,7 @@ func authOU(ctx context.Context) (context.Context, error) {
 }
 
 // New is the constroctor for a bot
-func New(botKey, token, tlsFile, caFile string) *Bot {
+func NewSlackBot(botKey, token, tlsFile, caFile string) Bot {
 	cert, err := certutils.LoadKeyCertFiles(tlsFile, tlsFile)
 	if err != nil {
 		log.Fatalf("Could not load TLS cert '%s': %s", tlsFile, err.Error())
@@ -268,7 +273,7 @@ func New(botKey, token, tlsFile, caFile string) *Bot {
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 	)
 
-	b := &Bot{
+	b := &SlackBot{
 		rtm:       slack.New(botKey).NewRTM(),
 		api:       slack.New(token),
 		name:      "riker",
@@ -284,7 +289,7 @@ func New(botKey, token, tlsFile, caFile string) *Bot {
 }
 
 // Run starts the bot
-func (b *Bot) Run() {
+func (b *SlackBot) Run() {
 	log.Println("starting slack RTM broker")
 	// TODO: check nil maybe return errors, and do that in New instead
 	go b.rtm.ManageConnection()
@@ -320,7 +325,7 @@ func (b Bot) findChannelByID(id string) *slack.Channel {
 }
 */
 
-func (b *Bot) startBroker() {
+func (b *SlackBot) startBroker() {
 	var botID string
 
 	for {
@@ -483,14 +488,14 @@ func (b *Bot) startBroker() {
 }
 
 // We want a way to return the slaslack user ID
-func (b *Bot) nicknameFromID(id string) string {
+func (b *SlackBot) nicknameFromID(id string) string {
 	if u, ok := b.users.Load(id); ok {
 		return u.(slack.User).Name
 	}
 	return ""
 }
 
-func (b *Bot) idHasEmail(id, email string) bool {
+func (b *SlackBot) idHasEmail(id, email string) bool {
 	if u, ok := b.users.Load(id); ok {
 		user := u.(slack.User)
 		log.Println("User ID: " + user.ID + " email: " + user.Profile.Email + " name: " + user.Name)
@@ -502,7 +507,7 @@ func (b *Bot) idHasEmail(id, email string) bool {
 	return false
 }
 
-func (b *Bot) idInGroup(id, group string) bool {
+func (b *SlackBot) idInGroup(id, group string) bool {
 	for _, g := range b.groups {
 		log.Printf("checking group " + group + " == " + g.Handle)
 		if g.Handle == group {
