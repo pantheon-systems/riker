@@ -92,3 +92,7 @@ Credentials:
 - SLACK_TOKEN: Used by riker to authenticate to the Slack API
 - SLACK_BOT_TOKEN: Used by riker to login to Slack "chat" as a bot.
 
+
+Developing Redshirts
+====================
+Run riker in terminal mode. Connect shirt without auth. proffit.

@@ -29,8 +29,8 @@ type redshirtRegistration struct {
 	capability *botpb.Capability
 }
 
-// Implement Register  wrapper around redshirts
-// Bot is the bot
+// SlackBot is the slack adaptor for riker. It implments the riker.Bot interface for bridging redshirts
+// to chat platforms
 type SlackBot struct {
 	name string
 	rtm  *slack.RTM
@@ -304,7 +304,7 @@ func (b *SlackBot) startBroker() {
 			rsReg, ok := b.redshirts[cmdName]
 			b.RUnlock()
 			if !ok {
-				msg := b.rtm.NewOutgoingMessage("Sorry, that redshirt has not repoorted for duty. I can't complete the request", ev.Channel)
+				msg := b.rtm.NewOutgoingMessage("Sorry, that redshirt has not reported for duty. I can't complete the request", ev.Channel)
 				go b.rtm.SendMessage(msg)
 				continue
 			}
