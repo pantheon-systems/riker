@@ -11,8 +11,6 @@ TODO:
 	* in pantheon or own org ?
 	* License? (APL2 likely because we are using some APL code)
 - [ ] External state
-- [ ] Consenus based redshirt registration (versioned capabilities)
-
 
 ---------------------------------------------------------------------------------------------
 https://getpantheon.atlassian.net/browse/IO-2612
@@ -95,3 +93,7 @@ Credentials:
 - SLACK_TOKEN: Used by riker to authenticate to the Slack API
 - SLACK_BOT_TOKEN: Used by riker to login to Slack "chat" as a bot.
 
+
+Developing Redshirts
+====================
+Run riker in terminal mode. Connect shirt without auth. proffit.
