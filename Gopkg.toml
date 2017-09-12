@@ -67,3 +67,7 @@
 [[constraint]]
   branch = "master"
   name = "github.com/nlopes/slack"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/grpc-ecosystem/go-grpc-middleware"

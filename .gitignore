@@ -1,2 +1,9 @@
 /riker
 vendor/*
+.envrc
+*.crt
+*.cert
+*.pem
+riker.key
+
+.DS_Store

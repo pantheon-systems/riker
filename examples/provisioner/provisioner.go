@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pantheon-systems/riker/pkg/botpb"
-	"google.golang.org/grpc"
+	"github.com/pantheon-systems/riker/pkg/redshirt"
 )
 
 var okMatch = regexp.MustCompile(`OK:`)
@@ -21,7 +22,18 @@ var client botpb.RikerClient
 
 func main() {
 
-	conn, err := grpc.Dial("localhost:6000", grpc.WithInsecure())
+	// load TLS shit
+	tlsFile := os.Getenv("REDSHIRT_TLS_CERT")
+	if tlsFile == "" {
+		log.Fatal("REDSHIRT_TLS_CERT env var not set")
+	}
+	caFile := os.Getenv("REDSHIRT_CA_FILE")
+	if caFile == "" {
+		log.Fatal("REDSHIRT_CA_FILE env var not set")
+	}
+
+	// connect to riker
+	conn, err := redshirt.NewTLSConnection("localhost:6000", tlsFile, caFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,7 +50,10 @@ func main() {
 		Usage:       "Manage provisioning of gce instances",
 		Description: "Provision and delete gce instances",
 		Auth: &botpb.CommandAuth{
-			Users: []string{"jesse@getpantheon.com"},
+			Users: []string{
+				"jesse@getpantheon.com",
+				"joe@getpantheon.com",
+			},
 			//			Groups: []string{"infra"},
 		},
 	}
@@ -86,8 +101,8 @@ func main() {
 		spew.Dump(reply)
 
 		c := exec.Cmd{
-			//			Path: "./test",
-			Path: "./provision",
+			Path: "./test",
+			// Path: "./provision",
 			Args: args,
 		}
 

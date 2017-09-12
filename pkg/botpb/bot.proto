@@ -18,6 +18,7 @@ service Riker {
 }
 
 // used to represent a slack message between riker <-> client
+// TODO: we might need a field to let riker indicate that a message came via private message or via public channel
 message Message {
 	// channel ID this came in on or should go out on :P
 	string channel = 1;
@@ -26,10 +27,17 @@ message Message {
 	string timestamp = 2;
 
 	// when client sends to riker, it needs to specify the thread_ts if its a reply.
+	// TODO: this is a slack-specific thing .. need to think about this if we intend to abstract chat services
 	string thread_ts = 3;
 
+  // the slack nickname that sent the message
+	string nickname = 4;
+
+  // a list of slack groups that the user who sent the message is a member of
+	repeated string groups = 5;
+
 	// data is the text that was sent, or to be sent
-	string payload = 4;
+	string payload = 20;
 }
 
 message SendResponse {
@@ -43,20 +51,6 @@ message Capability {
 	string description = 3;
 
 	CommandAuth auth = 4;
-
-	bool forced_registration = 5;
-	// bffersize
-	// 0 ... 100
-	enum bufferconfig {
-		// If unbuffered is chosen and the redshirt doesn't have an open stream, messages will fail
-		UNBUFFERED = 0;
-
-		// these are mesage queue depths both CommandStream and NextCommand will use it.
-		SMALL = 10;
-		MEDIUM = 50;
-		LARGE = 100;
-	}
-	bufferconfig buffer_size = 6;
 }
 
 // this is a simple response

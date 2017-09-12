@@ -12,7 +12,11 @@ import (
 
 func main() {
 
-	conn, err := grpc.Dial("localhost:6000", grpc.WithInsecure())
+	log.Println("Connecting to riker at localhost:6000")
+	conn, err := grpc.Dial("localhost:6000",
+		grpc.WithBlock(),
+		grpc.WithInsecure(),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
