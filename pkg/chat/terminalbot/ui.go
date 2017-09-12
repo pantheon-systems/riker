@@ -57,7 +57,7 @@ func (t *TerminalBot) viewLog(lMaxX int, lMaxY int) error {
 		for {
 			select {
 			case <-time.After(500 * time.Millisecond):
-				t.gui.Execute(func(g *gocui.Gui) error { return nil })
+				t.gui.Update(func(g *gocui.Gui) error { return nil })
 			}
 		}
 	}()
