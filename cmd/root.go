@@ -61,7 +61,6 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
 	RootCmd.AddCommand(slackCmd)
 	RootCmd.AddCommand(terminalCmd)
 	RootCmd.AddCommand(versionCmd)
@@ -86,11 +85,17 @@ func init() {
 		false,
 		"Enable debug logging")
 
+	RootCmd.PersistentFlags().BoolP(
+		"json-log",
+		"j",
+		false,
+		"Enable json output formatted logging",
+	)
+
 }
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-
 	dashToUs := strings.NewReplacer("-", "_")
 	viper.SetConfigName("." + appName)           // name of config file (without extension)
 	viper.AddConfigPath(".")                     // cwd is highest (preferred) config path
@@ -106,7 +111,11 @@ func initConfig() {
 
 	log = logrus.New()
 	log.Out = os.Stdout
+
 	logrus.SetFormatter(&logrus.TextFormatter{})
+	if viper.GetBool("json-log") {
+		logrus.SetFormatter(&logrus.JSONFormatter{})
+	}
 	logrus.SetOutput(os.Stderr)
 
 	log.Level = logrus.InfoLevel

@@ -2,8 +2,8 @@ package slackbot
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/nlopes/slack"
@@ -29,6 +30,16 @@ type redshirtRegistration struct {
 	capability *botpb.Capability
 }
 
+// ErrorLoadingCert Is returned when some failure to read/parse/load cert is encountered
+type ErrorLoadingCert struct {
+	m string
+}
+
+// Error implements the error interface for this type
+func (e ErrorLoadingCert) Error() string {
+	return e.m
+}
+
 // SlackBot is the slack adaptor for riker. It implments the riker.Bot interface for bridging redshirts
 // to chat platforms
 type SlackBot struct {
@@ -36,6 +47,7 @@ type SlackBot struct {
 	rtm  *slack.RTM
 	api  *slack.Client
 
+	log    *logrus.Logger
 	users  sync.Map
 	groups []slack.UserGroup
 
@@ -43,13 +55,15 @@ type SlackBot struct {
 	redshirts map[string]*redshirtRegistration
 	channels  map[string]bool
 
-	grpc *grpc.Server
+	bindAddr string
+	grpc     *grpc.Server
+
 	*sync.RWMutex
 }
 
 // NewRedShirt implements the riker protobuf server
 func (b *SlackBot) NewRedShirt(ctx context.Context, cap *botpb.Capability) (*botpb.Registration, error) {
-	log.Println("Registering client ", cap)
+	b.log.Info("Registering client ", cap)
 	b.Lock()
 	defer b.Unlock()
 	resp := &botpb.Registration{
@@ -131,7 +145,7 @@ func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 	// pump for messages to slack
 	for {
 		in, err := stream.Recv()
-		log.Println("Received value")
+		b.log.Debug("Received value")
 		if err == io.EOF {
 			return nil
 		}
@@ -145,14 +159,18 @@ func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 }
 
 // New is the constroctor for a bot
-func New(botKey, token, tlsFile, caFile string) riker.Bot {
+func New(bindAddr, botKey, token, tlsFile, caFile string, log *logrus.Logger) (riker.Bot, error) {
+	if log == nil {
+		log = logrus.New()
+	}
+
 	cert, err := certutils.LoadKeyCertFiles(tlsFile, tlsFile)
 	if err != nil {
-		log.Fatalf("Could not load TLS cert '%s': %s", tlsFile, err.Error())
+		return nil, ErrorLoadingCert{fmt.Sprintf("Could not load TLS cert '%s': %s", tlsFile, err.Error())}
 	}
 	caPool, err := certutils.LoadCACertFile(caFile)
 	if err != nil {
-		log.Fatalf("Could not load CA cert '%s': %s", caFile, err.Error())
+		return nil, ErrorLoadingCert{fmt.Sprintf("Could not load CA cert '%s': %s", caFile, err.Error())}
 	}
 	// TODO: use CertReloader from certutils
 	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
@@ -179,34 +197,36 @@ func New(botKey, token, tlsFile, caFile string) riker.Bot {
 	)
 
 	b := &SlackBot{
+		log:       log,
 		rtm:       slack.New(botKey).NewRTM(),
 		api:       slack.New(token),
 		name:      "riker",
 		grpc:      grpcServer,
+		bindAddr:  bindAddr,
 		redshirts: make(map[string]*redshirtRegistration, 10),
 		channels:  make(map[string]bool, 100),
 	}
 	b.RWMutex = &sync.RWMutex{}
-	//b.rtm.SetDebug(true)
 
 	botpb.RegisterRikerServer(grpcServer, b)
-	return b
+	return b, nil
 }
 
 // Run starts the bot
 func (b *SlackBot) Run() {
-	log.Println("starting slack RTM broker")
+	b.log.Info("starting slack RTM broker")
 	// TODO: check nil maybe return errors, and do that in New instead
 	go b.rtm.ManageConnection()
 
-	l, err := net.Listen("tcp", "0.0.0.0:6000")
+	l, err := net.Listen("tcp", b.bindAddr)
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		b.log.Fatalf("failed to listen: %v", err)
 	}
-	log.Println("Listening on tcp://0.0.0.0:6000")
+	b.log.Info("Starting GRPC server listening on " + b.bindAddr)
 	go func() {
-		log.Fatal(b.grpc.Serve(l))
+		b.log.Fatal(b.grpc.Serve(l))
 	}()
+
 	b.startBroker()
 }
 
@@ -222,7 +242,7 @@ func (b *SlackBot) startBroker() {
 
 			usersSlice, err := b.rtm.GetUsers()
 			if err != nil {
-				log.Fatal(err)
+				b.log.Fatal(err)
 			}
 			for _, u := range usersSlice {
 				b.users.Store(u.ID, u)
@@ -230,13 +250,13 @@ func (b *SlackBot) startBroker() {
 
 			b.groups, err = b.api.GetUserGroups()
 			if err != nil {
-				log.Fatal(err)
+				b.log.Fatal(err)
 			}
 
-			log.Printf("Riker has connected to Slack! %+v", ev.Info.User)
+			b.log.Debugf("Riker has connected to Slack! %+v", ev.Info.User)
 
 		case *slack.TeamJoinEvent:
-			log.Printf("User Joined: %+v", ev.User)
+			b.log.Debugf("User Joined: %+v", ev.User)
 			b.users.Store(ev.User.ID, ev.User)
 
 		case *slack.MessageEvent:
@@ -252,7 +272,8 @@ func (b *SlackBot) startBroker() {
 				continue
 			}
 
-			log.Printf("Message recieved: %+v", ev)
+			ll := b.log.WithField("uid", ev.User)
+			ll.Debugf("Message recieved: %+v", ev)
 
 			// for now strip this out and convert the text message into an array of words for easier parsing
 			msgSlice := strings.Split(ev.Text, " ")
@@ -263,7 +284,7 @@ func (b *SlackBot) startBroker() {
 			if !ok {
 				_, err := b.rtm.GetChannelInfo(ev.Channel)
 				if err != nil && err.Error() != "channel_not_found" {
-					log.Println("not dm not channel: ", err)
+					ll.Debug("not dm not channel: ", err)
 					continue
 				}
 
@@ -274,6 +295,7 @@ func (b *SlackBot) startBroker() {
 				b.channels[ev.Channel] = isChan
 			}
 			b.Unlock()
+			ll = ll.WithField("isChan", isChan)
 
 			// fix the message so that it is the same no matter if the message came via DM or a channel
 			botString := "<@" + botID + ">"
@@ -289,6 +311,7 @@ func (b *SlackBot) startBroker() {
 			if len(msgSlice) < 2 {
 				continue
 			}
+			ll = ll.WithField("command", msgSlice[1])
 
 			if msgSlice[1] == "help" {
 				// TODO: implement help using the registered Capability's and their name / description / usage
@@ -299,7 +322,7 @@ func (b *SlackBot) startBroker() {
 
 			// match the message prefix to registered commands
 			cmdName := msgSlice[1]
-			log.Println("checking for command ", cmdName)
+			ll.Debug("checking for command")
 			b.RLock()
 			rsReg, ok := b.redshirts[cmdName]
 			b.RUnlock()
@@ -310,12 +333,15 @@ func (b *SlackBot) startBroker() {
 			}
 
 			// Verify this person is allowed to run this command, cause unauthed commands are a violation of starfleet protocols.
-			log.Println("Checking user authentication", ev.User)
+			ll = ll.WithField("auth", false)
+			ll.Info("Checking user authentication")
 
 			auth := false
 			for _, ua := range rsReg.capability.Auth.Users {
 				auth = b.idHasEmail(ev.User, ua)
 				if auth {
+					ll = ll.WithField("auth", true)
+					ll = ll.WithField("auth-email", ua)
 					break
 				}
 			}
@@ -323,6 +349,8 @@ func (b *SlackBot) startBroker() {
 			for _, ga := range rsReg.capability.Auth.Groups {
 				auth = auth || b.idInGroup(ev.User, ga)
 				if auth {
+					ll = ll.WithField("auth", true)
+					ll = ll.WithField("auth-group", ga)
 					break
 				}
 			}
@@ -349,21 +377,21 @@ func (b *SlackBot) startBroker() {
 				//Groups:     ev.Group, // TODO: implement sending a list of the user's groups to the redshirt if it wants to make more complicated authz decisions
 			}
 
-			log.Println("sending Command", msg)
+			ll.Debug("sending Command", msg)
 			select {
 			case rsReg.queue <- msg:
 			default:
-				log.Println("Couldn't send to internal slack message queue.")
+				ll.Warn("Couldn't send to internal slack message queue.")
 				msg := b.rtm.NewOutgoingMessage("Sorry, redshirt supply is low. Couldn't complete your request.", ev.Channel)
 				go b.rtm.SendMessage(msg)
 				break
 			}
 
 		case *slack.RTMError:
-			log.Printf("Error: %s", ev.Error())
+			b.log.Warn("Error: %s", ev.Error())
 
 		case *slack.InvalidAuthEvent:
-			log.Fatalf("Invalid credentials: %s", ev)
+			b.log.Fatalf("Invalid credentials: %s", ev)
 
 		default:
 			// Ignore other events..
@@ -383,9 +411,9 @@ func (b *SlackBot) nicknameFromID(id string) string {
 func (b *SlackBot) idHasEmail(id, email string) bool {
 	if u, ok := b.users.Load(id); ok {
 		user := u.(slack.User)
-		log.Println("User ID: " + user.ID + " email: " + user.Profile.Email + " name: " + user.Name)
+		b.log.Debug("User ID: " + user.ID + " email: " + user.Profile.Email + " name: " + user.Name)
 		if user.ID == id && user.Profile.Email == email {
-			log.Println("---------------- MATCHED -----------------")
+			b.log.Debug("---------------- MATCHED -----------------")
 			return true
 		}
 	}
@@ -394,13 +422,13 @@ func (b *SlackBot) idHasEmail(id, email string) bool {
 
 func (b *SlackBot) idInGroup(id, group string) bool {
 	for _, g := range b.groups {
-		log.Printf("checking group " + group + " == " + g.Handle)
+		b.log.Debug("checking group " + group + " == " + g.Handle)
 		if g.Handle == group {
 			m, err := b.api.GetUserGroupMembers(g.ID)
 			spew.Dump(err)
 			spew.Dump(m)
 			for _, u := range m {
-				log.Printf("ZOMG: %s == %s", u, id)
+				b.log.Debug("Match?: %s == %s", u, id)
 				if u == id {
 					return true
 				}

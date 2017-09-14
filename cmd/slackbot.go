@@ -28,12 +28,18 @@ func startSlackBot(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	b := slackbot.New(
+	b, err := slackbot.New(
+		viper.GetString("bind-address"),
 		viper.GetString("bot-token"),
 		viper.GetString("api-token"),
 		viper.GetString("tls-cert"),
 		viper.GetString("ca-cert"),
+		log,
 	)
+	if err != nil {
+		return err
+	}
+
 	b.Run()
 	return nil
 }
