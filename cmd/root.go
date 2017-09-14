@@ -25,7 +25,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-const appName = "pants"
+const appName = "riker"
 
 var (
 	version = "development"
@@ -60,10 +60,11 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
 	RootCmd.AddCommand(slackCmd)
 	RootCmd.AddCommand(terminalCmd)
 	RootCmd.AddCommand(versionCmd)
+
+	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringP(
 		"bind-address",

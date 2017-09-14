@@ -2,6 +2,7 @@ package slackbot
 
 import (
 	"crypto/tls"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
@@ -12,8 +13,10 @@ import (
 	"golang.org/x/net/context"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/peer"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/davecgh/go-spew/spew"
@@ -40,6 +43,9 @@ func (e ErrorLoadingCert) Error() string {
 	return e.m
 }
 
+// clientCertKey is the context key where the client mTLS cert (pkix.Name) is stored
+type clientCertKey struct{}
+
 // SlackBot is the slack adaptor for riker. It implments the riker.Bot interface for bridging redshirts
 // to chat platforms
 type SlackBot struct {
@@ -52,8 +58,9 @@ type SlackBot struct {
 	groups []slack.UserGroup
 
 	// redshirts holds state of commands that map to client registrations
-	redshirts map[string]*redshirtRegistration
-	channels  map[string]bool
+	redshirts  map[string]*redshirtRegistration
+	channels   map[string]bool
+	allowedOUs []string
 
 	bindAddr string
 	grpc     *grpc.Server
@@ -159,7 +166,7 @@ func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 }
 
 // New is the constroctor for a bot
-func New(bindAddr, botKey, token, tlsFile, caFile string, log *logrus.Logger) (riker.Bot, error) {
+func New(bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []string, log *logrus.Logger) (riker.Bot, error) {
 	if log == nil {
 		log = logrus.New()
 	}
@@ -168,10 +175,12 @@ func New(bindAddr, botKey, token, tlsFile, caFile string, log *logrus.Logger) (r
 	if err != nil {
 		return nil, ErrorLoadingCert{fmt.Sprintf("Could not load TLS cert '%s': %s", tlsFile, err.Error())}
 	}
+
 	caPool, err := certutils.LoadCACertFile(caFile)
 	if err != nil {
 		return nil, ErrorLoadingCert{fmt.Sprintf("Could not load CA cert '%s': %s", caFile, err.Error())}
 	}
+
 	// TODO: use CertReloader from certutils
 	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
 	tlsConfig.ClientCAs = caPool
@@ -189,23 +198,28 @@ func New(bindAddr, botKey, token, tlsFile, caFile string, log *logrus.Logger) (r
 		Timeout: 15 * time.Second,
 	}
 
+	b := &SlackBot{
+		name: "riker",
+		log:  log,
+
+		bindAddr:   bindAddr,
+		allowedOUs: allowedOUs,
+
+		api: slack.New(token),
+		rtm: slack.New(botKey).NewRTM(),
+
+		channels:  make(map[string]bool, 100),
+		redshirts: make(map[string]*redshirtRegistration, 10),
+	}
+
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(k),
-		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(riker.AuthOU)),
-		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(riker.AuthOU)),
+		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(b.authOU)),
+		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(b.authOU)),
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 	)
 
-	b := &SlackBot{
-		log:       log,
-		rtm:       slack.New(botKey).NewRTM(),
-		api:       slack.New(token),
-		name:      "riker",
-		grpc:      grpcServer,
-		bindAddr:  bindAddr,
-		redshirts: make(map[string]*redshirtRegistration, 10),
-		channels:  make(map[string]bool, 100),
-	}
+	b.grpc = grpcServer
 	b.RWMutex = &sync.RWMutex{}
 
 	botpb.RegisterRikerServer(grpcServer, b)
@@ -435,6 +449,67 @@ func (b *SlackBot) idInGroup(id, group string) bool {
 			}
 		}
 
+	}
+	return false
+}
+
+// tlsConnStateFromContext extracts the client (peer) tls connectionState from a context
+func tlsConnStateFromContext(ctx context.Context) (*tls.ConnectionState, error) {
+	peer, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, grpc.Errorf(codes.PermissionDenied, "Permission denied: no peer info")
+	}
+	tlsInfo, ok := peer.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return nil, grpc.Errorf(codes.PermissionDenied, "Permission denied: peer didn't not present valid peer certificate")
+	}
+	return &tlsInfo.State, nil
+}
+
+// getCertificateSubject extracts the subject from a verified client certificate
+func getCertificateSubject(tlsState *tls.ConnectionState) (pkix.Name, error) {
+	if tlsState == nil {
+		return pkix.Name{}, grpc.Errorf(codes.PermissionDenied, "request is not using TLS")
+	}
+	if len(tlsState.PeerCertificates) == 0 {
+		return pkix.Name{}, grpc.Errorf(codes.PermissionDenied, "no client certificates in request")
+	}
+	if len(tlsState.VerifiedChains) == 0 {
+		return pkix.Name{}, grpc.Errorf(codes.PermissionDenied, "no verified chains for remote certificate")
+	}
+
+	return tlsState.VerifiedChains[0][0].Subject, nil
+}
+
+// AuthOU extracts the client mTLS cert from a context and verifies the client cert OU is in the list of
+// allowedOUs. It returns an error if the client is not permitted.
+func (b *SlackBot) authOU(ctx context.Context) (context.Context, error) {
+	tlsState, err := tlsConnStateFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	clientCert, err := getCertificateSubject(tlsState)
+	if err != nil {
+		return nil, err
+	}
+	b.log.Debugf("authOU: client CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
+
+	if intersectArrays(clientCert.OrganizationalUnit, b.allowedOUs) {
+		return context.WithValue(ctx, clientCertKey{}, clientCert), nil
+	}
+	b.log.Debugf("authOU: client cert failed authentication. CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
+	return nil, grpc.Errorf(codes.PermissionDenied, "client cert OU '%s' is not allowed", clientCert.OrganizationalUnit)
+}
+
+// intersectArrays returns true when there is at least one element in common between the two arrays
+func intersectArrays(orig, tgt []string) bool {
+	for _, i := range orig {
+		for _, x := range tgt {
+			if i == x {
+				return true
+			}
+		}
 	}
 	return false
 }

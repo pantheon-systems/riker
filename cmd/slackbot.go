@@ -34,6 +34,7 @@ func startSlackBot(cmd *cobra.Command, args []string) error {
 		viper.GetString("api-token"),
 		viper.GetString("tls-cert"),
 		viper.GetString("ca-cert"),
+		viper.GetStringSlice("allowed-ou"),
 		log,
 	)
 	if err != nil {
@@ -69,8 +70,19 @@ func init() {
 	slackCmd.PersistentFlags().StringP(
 		"ca-cert",
 		"k",
-		"",
-		"The CA certificate to use in addition to the os certificate chain",
+		"/etc/ssl/cacerts/ca-bundle.crt",
+		"The CA certificate chain to use.",
+	)
+
+	slackCmd.PersistentFlags().StringSliceP(
+		"allowed-ou",
+		"o",
+		[]string{
+			"riker",
+			"riker-server",
+			"riker-redshirt",
+		},
+		"Allowed Cert ous for redhirts to register commands to the server. Can be specified multiple times.",
 	)
 
 	// binding flags to viper

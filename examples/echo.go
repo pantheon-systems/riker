@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 
@@ -11,7 +12,6 @@ import (
 )
 
 func main() {
-
 	log.Println("Connecting to riker at localhost:6000")
 	conn, err := grpc.Dial("localhost:6000",
 		grpc.WithBlock(),
@@ -20,7 +20,10 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		fmt.Println("exited")
+	}()
 
 	client := botpb.NewRikerClient(conn)
 	cap := &botpb.Capability{
