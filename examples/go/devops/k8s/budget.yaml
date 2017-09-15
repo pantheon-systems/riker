@@ -1,0 +1,19 @@
+---
+# read more about disruption budgets:
+# https://kubernetes.io/docs/tasks/administer-cluster/configure-pod-disruption-budget/
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  # these should only be applied in the production environment
+  namespace: production
+  name: example-app
+spec:
+  selector:
+    matchLabels:
+      app: example-app
+      state: serving
+
+  # this can be a % or an Integer. Specifying an integer value will mean that
+  # many pods should always be available.  # 70% in most cases is probably good
+  # for all cases where your app runs with >= 3 pods
+  minAvailable: 70%
