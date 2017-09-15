@@ -67,6 +67,13 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringP(
+		"bot-name",
+		"n",
+		"riker",
+		"The name of your server in chat",
+	)
+
+	RootCmd.PersistentFlags().StringP(
 		"bind-address",
 		"b",
 		":6000",

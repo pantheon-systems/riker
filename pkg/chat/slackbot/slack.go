@@ -166,7 +166,7 @@ func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 }
 
 // New is the constroctor for a bot
-func New(bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []string, log *logrus.Logger) (riker.Bot, error) {
+func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []string, log *logrus.Logger) (riker.Bot, error) {
 	if log == nil {
 		log = logrus.New()
 	}
@@ -199,7 +199,7 @@ func New(bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []string, l
 	}
 
 	b := &SlackBot{
-		name: "riker",
+		name: name,
 		log:  log,
 
 		bindAddr:   bindAddr,
