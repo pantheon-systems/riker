@@ -129,6 +129,7 @@ func initConfig() {
 	log.Level = logrus.InfoLevel
 	if viper.GetBool("debug") {
 		log.Level = logrus.DebugLevel
+		log.Debug("debugging enabled")
 	}
 
 	// Allows us to specify a config file via flag

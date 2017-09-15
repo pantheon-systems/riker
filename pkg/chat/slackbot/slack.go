@@ -5,6 +5,7 @@ import (
 	"crypto/x509/pkix"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -238,9 +239,10 @@ func (b *SlackBot) Run() {
 	}
 	b.log.Info("Starting GRPC server listening on " + b.bindAddr)
 	go func() {
-		b.log.Fatal(b.grpc.Serve(l))
+		log.Fatal(b.grpc.Serve(l))
 	}()
 
+	b.log.Info("Starting Slack Broker")
 	b.startBroker()
 }
 
@@ -251,6 +253,7 @@ func (b *SlackBot) startBroker() {
 		msg := <-b.rtm.IncomingEvents
 		switch ev := msg.Data.(type) {
 		case *slack.ConnectedEvent:
+			b.log.Debugf("Connected to slack %+v", ev)
 			var err error
 			botID = ev.Info.User.ID
 
@@ -402,14 +405,17 @@ func (b *SlackBot) startBroker() {
 			}
 
 		case *slack.RTMError:
-			b.log.Warn("Error: %s", ev.Error())
+			b.log.Warn("Slack RTM error: ", ev.Msg)
 
 		case *slack.InvalidAuthEvent:
-			b.log.Fatalf("Invalid credentials: %s", ev)
+			b.log.Warnf("Invalid credentials: %s", ev)
+
+		case *slack.ConnectionErrorEvent:
+			b.log.WithError(ev.ErrorObj).Warn("Error connecting to slack")
 
 		default:
 			// Ignore other events..
-			//				fmt.Println("Unhandled event: ", msg.Type)
+			b.log.Debug("Unhandled slack event: ", msg.Type)
 		}
 	}
 }

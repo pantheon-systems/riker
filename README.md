@@ -97,8 +97,10 @@ Components
 
 Building From Source
 ====================
-Riker uses the `dep` tool for handling go dependencies, but the deps are not
-special. You should be able to build with `go get`.
+
+Riker should be build using go1.9+. Riker uses the `dep` tool for handling
+dependencies, but the deps are not special. You should be able to build with
+`go get`.
 ```
 go get -u github.com/pantheon-systems/riker
 ```
@@ -108,15 +110,10 @@ If that doesn't work you should check out the source and use dep ensure.
 git clone https://github.com/pantheon-systems/riker.git
 ```
 
-Then you should be able to run dep to get the dependencies:
+Then you just need to run make to setup deps and build
 ```
-#cd riker
-#dep ensure
-```
-
-And then build the source
-````
-$go build
+$ cd riker
+$ make deps build
 ```
 
 Developing Redshirts

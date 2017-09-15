@@ -2,6 +2,7 @@ package redshirt
 
 import (
 	"crypto/tls"
+	"fmt"
 
 	"github.com/pantheon-systems/go-certauth/certutils"
 	"google.golang.org/grpc"
@@ -16,7 +17,7 @@ func NewTLSConnection(addr, caFile, tlsFile string) (*grpc.ClientConn, error) {
 	}
 	caPool, err := certutils.LoadCACertFile(caFile)
 	if err != nil {
-		return nil, fmt.Fatalf("Could not load CA cert '%s': %s", caFile, err.Error())
+		return nil, fmt.Errorf("Could not load CA cert '%s': %s", caFile, err.Error())
 	}
 	tlsConfig := certutils.NewTLSConfig(certutils.TLSConfigModern)
 	tlsConfig.ClientCAs = caPool
