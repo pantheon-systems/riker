@@ -1,26 +1,11 @@
-- Could allow redshirts to register on events as well as commands, or commands to events.
-  in this mode we could passthrough  the slack event to the redshirt..
-
 TODO:
 
 ## Long term
-- [ ] Offline testing - allowing to test without slack.
+- [x] Offline testing - allowing to test without slack.
 - [ ] factor out the gRPC authOU and related funcs into our go-certauth lib? They're similar in spirit
-- [ ] OSS the project
+- [x] OSS the project
 	* better docs
-	* in pantheon or own org ?
-	* License? (APL2 likely because we are using some APL code)
 - [ ] External state
-
----------------------------------------------------------------------------------------------
-https://getpantheon.atlassian.net/browse/IO-2612
-"CSE.py actions available securely in Slack"
-
-## Done when:
-- [ ] Enable tasks for specific CSE users
-- [ ] Document Chatops, Train CSE
-- [ ] Update CSE workflows wiki pages to
-- [ ] Remove CSE access from critical production systems
 
 ## Short Term:
 ### Riker Server
@@ -30,7 +15,7 @@ https://getpantheon.atlassian.net/browse/IO-2612
 	- Jesse: calling this done per 96cb864. the map doesn't track clients, and the agreed upon last registration wins for updating the capabilities.
 - [x] Remove forced registration, and use simple always-apply approach for now.
 	- Jesse: done in 96cb864
-- [ ] Cobrafication /  config file
+- [x] Cobrafication /  config file
 - [ ] Deploy Riker, and redshirt army
 - [x] Figure out auth riker<-->redshirt
     we'll use mTLS
@@ -60,6 +45,8 @@ redshirt-proxy \
 
 NOTES:
 ------
+- Could allow redshirts to register on events as well as commands, or commands to events.
+  in this mode we could passthrough  the slack event to the redshirt..
 
 ## RedShirt capability registration -
 Goals:
@@ -76,24 +63,3 @@ Ideas
 - Always apply - last writer always wins
 
 Break authentication out from registration for this problem?
-
----------------------------------------------------------------------------------------------
-README / docs
-
-Riker
-=====
-
-terminology:
-- riker: server .. the gateway/orchestrator .. message-bus for humans and robots.. gateway between slack and redshirts..
-         enforces authentication and authorization of all commands ..
-- redshirt: client .. a microbot .. provider of a command namespace
-
-
-Credentials:
-- SLACK_TOKEN: Used by riker to authenticate to the Slack API
-- SLACK_BOT_TOKEN: Used by riker to login to Slack "chat" as a bot.
-
-
-Developing Redshirts
-====================
-Run riker in terminal mode. Connect shirt without auth. proffit.

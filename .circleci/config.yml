@@ -1,0 +1,24 @@
+---
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.9
+    working_directory: /go/src/github.com/pantheon-systems/riker
+    steps:
+      - checkout
+      # NOTE: run 'deps' instead of 'deps-circle'. We don't need the go install script when using circleci 2.0
+      - run: make deps
+      - run: make test-circle
+      - run: make build-release
+      - deploy:
+          # NOTE: GITHUB_TOKEN env var must be set
+          name: github_release
+          command: |
+            # Create a tag and release on github using $CIRCLE_BUILD_NUM for successful master builds
+            if [[ "${CIRCLE_BRANCH}" == "master" ]]; then
+              go get github.com/tcnksm/ghr
+              ghr -t $GITHUB_TOKEN -u $CIRCLE_PROJECT_USERNAME -r $CIRCLE_PROJECT_REPONAME --replace \
+                "$CIRCLE_BUILD_NUM" \
+                ./dist
+            fi

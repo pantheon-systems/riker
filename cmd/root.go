@@ -67,6 +67,13 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringP(
+		"bot-name",
+		"n",
+		"riker",
+		"The name of your server in chat",
+	)
+
+	RootCmd.PersistentFlags().StringP(
 		"bind-address",
 		"b",
 		":6000",
@@ -122,6 +129,7 @@ func initConfig() {
 	log.Level = logrus.InfoLevel
 	if viper.GetBool("debug") {
 		log.Level = logrus.DebugLevel
+		log.Debug("debugging enabled")
 	}
 
 	// Allows us to specify a config file via flag
