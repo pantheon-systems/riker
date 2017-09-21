@@ -490,6 +490,7 @@ func getCertificateSubject(tlsState *tls.ConnectionState) (pkix.Name, error) {
 // AuthOU extracts the client mTLS cert from a context and verifies the client cert OU is in the list of
 // allowedOUs. It returns an error if the client is not permitted.
 func (b *SlackBot) authOU(ctx context.Context) (context.Context, error) {
+	b.log.Debugf("allowed OUs %s", b.allowedOUs)
 	tlsState, err := tlsConnStateFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -501,17 +502,19 @@ func (b *SlackBot) authOU(ctx context.Context) (context.Context, error) {
 	}
 	b.log.Debugf("authOU: client CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
 
-	if intersectArrays(clientCert.OrganizationalUnit, b.allowedOUs) {
+	if b.intersectArrays(clientCert.OrganizationalUnit, b.allowedOUs) {
 		return context.WithValue(ctx, clientCertKey{}, clientCert), nil
 	}
 	b.log.Debugf("authOU: client cert failed authentication. CN=%s, OU=%s", clientCert.CommonName, clientCert.OrganizationalUnit)
-	return nil, grpc.Errorf(codes.PermissionDenied, "client cert OU '%s' is not allowed", clientCert.OrganizationalUnit)
+	return nil, grpc.Errorf(codes.PermissionDenied, "client cert OU '%s' is not allowed.", clientCert.OrganizationalUnit)
 }
 
 // intersectArrays returns true when there is at least one element in common between the two arrays
-func intersectArrays(orig, tgt []string) bool {
+func (b *SlackBot) intersectArrays(orig, tgt []string) bool {
 	for _, i := range orig {
 		for _, x := range tgt {
+			x = strings.TrimSpace(x)
+			b.log.Debug(i + "==" + x)
 			if i == x {
 				return true
 			}
