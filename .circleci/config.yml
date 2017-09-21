@@ -6,11 +6,13 @@ jobs:
       - image: circleci/golang:1.9
     working_directory: /go/src/github.com/pantheon-systems/riker
     steps:
+      - setup_remote_docker
       - checkout
       # NOTE: run 'deps' instead of 'deps-circle'. We don't need the go install script when using circleci 2.0
       - run: make deps
       - run: make test-circle
       - run: make build-release
+      - run: make build-docker
       - deploy:
           # NOTE: GITHUB_TOKEN env var must be set
           name: github_release
@@ -21,4 +23,6 @@ jobs:
               ghr -t $GITHUB_TOKEN -u $CIRCLE_PROJECT_USERNAME -r $CIRCLE_PROJECT_REPONAME --replace \
                 "$CIRCLE_BUILD_NUM" \
                 ./dist
+
+              make push
             fi

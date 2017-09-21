@@ -20,7 +20,6 @@ import (
 	"google.golang.org/grpc/peer"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/davecgh/go-spew/spew"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/nlopes/slack"
 	"github.com/pantheon-systems/go-certauth/certutils"
@@ -445,8 +444,9 @@ func (b *SlackBot) idInGroup(id, group string) bool {
 		b.log.Debug("checking group " + group + " == " + g.Handle)
 		if g.Handle == group {
 			m, err := b.api.GetUserGroupMembers(g.ID)
-			spew.Dump(err)
-			spew.Dump(m)
+			if err != nil {
+				b.log.Warnf("failed GetUserGroupMembers(%s): %s", g.ID, err)
+			}
 			for _, u := range m {
 				b.log.Debug("Match?: %s == %s", u, id)
 				if u == id {

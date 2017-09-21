@@ -120,11 +120,16 @@ func initConfig() {
 	log = logrus.New()
 	log.Out = os.Stdout
 
-	logrus.SetFormatter(&logrus.TextFormatter{})
 	if viper.GetBool("json-log") {
-		logrus.SetFormatter(&logrus.JSONFormatter{})
+		log.Formatter = &logrus.JSONFormatter{
+			TimestampFormat: "2006-01-02T15:04:05.999Z07:00", // RFC3339 at millisecond precision
+			FieldMap: logrus.FieldMap{
+				logrus.FieldKeyTime: "@timestamp",
+				logrus.FieldKeyMsg:  "message",
+			},
+		}
+		log.Info("Enabling JSON logging")
 	}
-	logrus.SetOutput(os.Stderr)
 
 	log.Level = logrus.InfoLevel
 	if viper.GetBool("debug") {
