@@ -31,9 +31,12 @@ type TerminalBot struct {
 
 	grpc *grpc.Server
 	gui  *gocui.Gui
+
+	nickname string
+	groups   []string
 }
 
-func New(addr string) *TerminalBot {
+func New(addr string, nickname string, groups []string) *TerminalBot {
 	k := keepalive.ServerParameters{
 		Time:    3 * time.Second,
 		Timeout: 15 * time.Second,
@@ -49,6 +52,8 @@ func New(addr string) *TerminalBot {
 		listenAddr: addr,
 		gui:        g,
 		grpc:       grpcServer,
+		nickname:   nickname,
+		groups:     groups,
 		redshirts:  make(map[string]*redshirtRegistration, 10),
 	}
 	t.RWMutex = &sync.RWMutex{}

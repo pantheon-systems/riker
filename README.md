@@ -87,6 +87,9 @@ To help develop redshrits we implemented a local mode chat server that disables
 gRPC authentication. This is meant only for local development. It can also be a
 way to play with Riker.
 
+You can set the nickname of the terminal mode user and the groups that the user belongs to using
+the command line options --nickname and --groups. Groups should be a comma seperated list of group
+names.
 
 Components
 ==========

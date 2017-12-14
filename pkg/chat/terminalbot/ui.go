@@ -185,7 +185,8 @@ func (t *TerminalBot) writeView(name, text string) {
 		ThreadTs:  ts.String(),
 
 		Payload:  text,
-		Nickname: "user",
+		Groups:   t.groups,
+		Nickname: t.nickname,
 	}
 
 	log.Printf("sending msg to redshirt: %v\n", msg)
