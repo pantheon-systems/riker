@@ -65,9 +65,19 @@
 # source = "https://github.com/myfork/package.git"
 
 [[constraint]]
-  branch = "master"
+#  using this branch from this pr untill it's merged/released to fix a bug with rtm
+#  https://github.com/apokalyptik/slack/commit/3a54c600b31b0c688debf4692c24c518476801ef
   name = "github.com/nlopes/slack"
-
+  source = "github.com/apokalyptik/slack"
+  revision = "3a54c600b31b0c688debf4692c24c518476801ef"
+#  revision = "v0.1.0"
+#  branch = "master"
+#
+#
 [[constraint]]
   branch = "master"
   name = "github.com/grpc-ecosystem/go-grpc-middleware"
+
+[[constraint]]
+  name = "github.com/jroimartin/gocui"
+  revision = "4f518eddb04b8f73870836b6d1941e8aa3c06637"
