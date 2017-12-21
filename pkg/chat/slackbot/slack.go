@@ -412,6 +412,11 @@ func (b *SlackBot) startBroker() {
 		case *slack.ConnectionErrorEvent:
 			b.log.WithError(ev.ErrorObj).Warn("Error connecting to slack")
 
+		case *slack.AckErrorEvent:
+			b.log.Warnf("connection error: %+v", msg)
+			// TODO: exp backoff ?
+			time.Sleep(10 * time.Second)
+
 		default:
 			// Ignore other events..
 			b.log.Debug("Unhandled slack event: ", msg.Type)
