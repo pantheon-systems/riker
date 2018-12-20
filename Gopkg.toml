@@ -68,9 +68,10 @@
 #  using this branch from this pr untill it's merged/released to fix a bug with rtm
 #  https://github.com/apokalyptik/slack/commit/3a54c600b31b0c688debf4692c24c518476801ef
   name = "github.com/nlopes/slack"
-  source = "github.com/apokalyptik/slack"
-  revision = "3a54c600b31b0c688debf4692c24c518476801ef"
-#  revision = "v0.1.0"
+  source = "github.com/nlopes/slack"
+  revision = "v0.4.0"
+# source = "github.com/apokalyptik/slack"
+# revision = "3a54c600b31b0c688debf4692c24c518476801ef"
 #  branch = "master"
 #
 #
