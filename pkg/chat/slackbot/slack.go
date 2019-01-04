@@ -198,6 +198,9 @@ func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []str
 		Timeout: 15 * time.Second,
 	}
 
+	debugOption := slack.OptionDebug(true)
+	logOption := slack.OptionLog(log)
+
 	b := &SlackBot{
 		name: name,
 		log:  log,
@@ -205,8 +208,8 @@ func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []str
 		bindAddr:   bindAddr,
 		allowedOUs: allowedOUs,
 
-		api: slack.New(token),
-		rtm: slack.New(botKey).NewRTM(),
+		api: slack.New(token, debugOption, logOption),
+		rtm: slack.New(botKey, debugOption, logOption).NewRTM(),
 
 		channels:  make(map[string]bool, 100),
 		redshirts: make(map[string]*redshirtRegistration, 10),
