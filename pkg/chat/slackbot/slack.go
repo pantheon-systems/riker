@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,10 @@ func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 	}
 }
 
+func getBasicLogger() *log.Logger {
+	return log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
+}
+
 // New is the constroctor for a bot
 func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []string, log *logrus.Logger) (riker.Bot, error) {
 	if log == nil {
@@ -199,7 +204,7 @@ func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []str
 	}
 
 	debugOption := slack.OptionDebug(true)
-	logOption := slack.OptionLog(log)
+	logOption := slack.OptionLog(getBasicLogger())
 
 	b := &SlackBot{
 		name: name,
