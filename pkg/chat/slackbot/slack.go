@@ -253,6 +253,29 @@ func (b *SlackBot) Run() {
 	b.startBroker()
 }
 
+func (b *SlackBot) isChan(ev *slack.MessageEvent) (bool, error) {
+	//  we need to detect  a direct message from a channel message, and unfortunately slack doens't make that super awesome
+	// https://stackoverflow.com/questions/41111227/how-can-a-slack-bot-detect-a-direct-message-vs-a-message-in-a-channel
+	b.Lock()
+	isChan, ok := b.channels[ev.Channel]
+	if !ok {
+		_, err := b.rtm.GetChannelInfo(ev.Channel)
+		if err != nil && (err.Error() != "channel_not_found" && err.Error() != "method_not_supported_for_channel_type") {
+			b.log.Debug("not dm not channel: ", err)
+			b.Unlock()
+			return false, err
+		}
+
+		if err == nil {
+			isChan = true
+		}
+
+		b.channels[ev.Channel] = isChan
+	}
+	b.Unlock()
+	return isChan, nil
+}
+
 func (b *SlackBot) startBroker() {
 	var botID string
 
@@ -284,7 +307,7 @@ func (b *SlackBot) startBroker() {
 			b.users.Store(ev.User.ID, ev.User)
 
 		case *slack.MessageEvent:
-			//	spew.Dump(ev)
+			// spew.Dump(ev)
 			// ignore messages from other bots or ourself
 			// XXX: in order to avoid responding to the bot's own messages, it appears we need to check for an empty ev.User
 			//log.Printf("botID: %s, User: %s", ev.BotID, ev.User)
@@ -302,23 +325,11 @@ func (b *SlackBot) startBroker() {
 			// for now strip this out and convert the text message into an array of words for easier parsing
 			msgSlice := strings.Split(ev.Text, " ")
 
-			//  we need to detect  a direct message from a channel message, and unfortunately slack doens't make that super awesome
-			b.Lock()
-			isChan, ok := b.channels[ev.Channel]
-			if !ok {
-				_, err := b.rtm.GetChannelInfo(ev.Channel)
-				if err != nil && err.Error() != "channel_not_found" {
-					ll.Debug("not dm not channel: ", err)
-					continue
-				}
-
-				if err == nil {
-					isChan = true
-				}
-
-				b.channels[ev.Channel] = isChan
+			// if not a chan then it is a DM
+			isChan, err := b.isChan(ev)
+			if err != nil {
+				continue
 			}
-			b.Unlock()
 			ll = ll.WithField("isChan", isChan)
 
 			// fix the message so that it is the same no matter if the message came via DM or a channel
