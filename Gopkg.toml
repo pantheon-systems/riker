@@ -69,10 +69,10 @@
 #  https://github.com/apokalyptik/slack/commit/3a54c600b31b0c688debf4692c24c518476801ef
   name = "github.com/nlopes/slack"
   source = "github.com/nlopes/slack"
-  revision = "v0.4.0"
+# revision = "v0.4.0"
 # source = "github.com/apokalyptik/slack"
 # revision = "3a54c600b31b0c688debf4692c24c518476801ef"
-#  branch = "master"
+  branch = "master"
 #
 #
 [[constraint]]

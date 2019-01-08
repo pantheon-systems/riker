@@ -117,14 +117,15 @@
   revision = "06020f85339e21b2478f756a78e295255ffa4d6a"
 
 [[projects]]
-  digest = "1:9407d3c57389f400ef8c1039e352ce00e2ab97c41bf1babba97c2a6922b7111e"
+  branch = "master"
+  digest = "1:e33ff66ad34bc83e621d0ad1723b0f588f71b297e15071d1b4237f6f47e00662"
   name = "github.com/nlopes/slack"
   packages = [
     ".",
     "slackutilsx",
   ]
   pruneopts = ""
-  revision = "v0.4.0"
+  revision = "db1f92067f7ba507e9c733117c60765a7fc84ffa"
   source = "github.com/nlopes/slack"
 
 [[projects]]
