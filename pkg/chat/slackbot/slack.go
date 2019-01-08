@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -166,10 +165,6 @@ func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 	}
 }
 
-func getBasicLogger() *log.Logger {
-	return log.New(os.Stdout, "slack-bot: ", log.Lshortfile|log.LstdFlags)
-}
-
 // New is the constroctor for a bot
 func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []string, log *logrus.Logger) (riker.Bot, error) {
 	if log == nil {
@@ -203,8 +198,7 @@ func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []str
 		Timeout: 15 * time.Second,
 	}
 
-	debugOption := slack.OptionDebug(true)
-	logOption := slack.OptionLog(getBasicLogger())
+	debugOption := slack.OptionDebug(log.Level == logrus.DebugLevel)
 
 	b := &SlackBot{
 		name: name,
@@ -213,8 +207,8 @@ func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []str
 		bindAddr:   bindAddr,
 		allowedOUs: allowedOUs,
 
-		api: slack.New(token, debugOption, logOption),
-		rtm: slack.New(botKey, debugOption, logOption).NewRTM(),
+		api: slack.New(token, debugOption),
+		rtm: slack.New(botKey, debugOption).NewRTM(),
 
 		channels:  make(map[string]bool, 100),
 		redshirts: make(map[string]*redshirtRegistration, 10),
@@ -254,15 +248,17 @@ func (b *SlackBot) Run() {
 }
 
 func (b *SlackBot) isChan(ev *slack.MessageEvent) (bool, error) {
-	//  we need to detect  a direct message from a channel message, and unfortunately slack doens't make that super awesome
+	// we need to detect a direct message from a channel message, and unfortunately slack doens't make that super awesome
+	// TODO: might try simplifing to this huristic though might be just as brittal as this code is now
 	// https://stackoverflow.com/questions/41111227/how-can-a-slack-bot-detect-a-direct-message-vs-a-message-in-a-channel
 	b.Lock()
+	defer b.Unlock()
+
 	isChan, ok := b.channels[ev.Channel]
 	if !ok {
 		_, err := b.rtm.GetChannelInfo(ev.Channel)
 		if err != nil && (err.Error() != "channel_not_found" && err.Error() != "method_not_supported_for_channel_type") {
 			b.log.Debug("not dm not channel: ", err)
-			b.Unlock()
 			return false, err
 		}
 
@@ -272,7 +268,6 @@ func (b *SlackBot) isChan(ev *slack.MessageEvent) (bool, error) {
 
 		b.channels[ev.Channel] = isChan
 	}
-	b.Unlock()
 	return isChan, nil
 }
 
