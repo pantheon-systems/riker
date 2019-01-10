@@ -29,6 +29,7 @@ prune-common-make:
 		-not -name common-docs.mk \
 		-not -name common-go.mk \
 		-not -name install-go.sh \
+		-not -name build-docker.sh \
 		-not -name install-gcloud.sh \
 		-not -name install-shellcheck.sh \
 		-not -name update-kube-object.sh \

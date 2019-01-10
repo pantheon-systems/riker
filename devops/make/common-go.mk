@@ -1,6 +1,7 @@
 # Common  Go Tasks
 #
 # INPUT VARIABLES
+# - GOTEST_ARGS: Override the options passed by default ot go test (--race by default)
 # - COVERALLS_TOKEN: Token to use when pushing coverage to coveralls.
 #
 # - FETCH_CA_CERT: The presence of this variable will cause the root CA certs
@@ -13,67 +14,93 @@
 deps:: deps-go
 deps-circle:: deps-circle-go deps
 lint:: lint-go
-test:: test-go
+test:: lint-go test-go
 test-circle:: test test-coveralls
 test-coverage:: test-coverage-go
-build:: build-go
+build:: $(APP)
+
+ifndef GOTEST_ARGS
+  GOTEST_ARGS := "--race"
+endif
 
 ## dependency manager detection
-ifeq (,$(wildcard vendor/manifest))
+ifneq (,$(wildcard go.mod)) # if there IS go.mod
+  USE_MODULE = 1
+  GO111MODULE=on
+  export GO11MODULE
+  GOLANGCI_VERSION := v1.10.2
+else ifneq (,$(wildcard Gopkg.toml)) # if ther IS Gopkg.toml
   USE_DEP = 1
 else
   USE_GVT = 1
 endif
 
+DEBUG ?= false
+GO_FLAGS ?= -ldflags="-s -w"
+ifneq (false,$(DEBUG))
+  GO_FLAGS := -gcflags=all='-N -l'
+endif
+
 ## go tasks
+$(APP): $(shell find . -type f -name '*.go')
+	$(call INFO, "building project")
+	@go build $(GO_FLAGS) -o $(APP) > /dev/null
 
-build-go:: ## build project for current arch
-	$(call INFO, "building project for current architecture")
-	@go build > /dev/null
-
-build-linux:: _fetch-cert ## build project for linux
-	$(call INFO, "building project for linux")
-	@GOOS=linux CGO_ENABLED=0 go build -ldflags="-s -w" > /dev/null
+build-linux:: ## build project for linux
+build-linux:: export GOOS=linux
+build-linux:: export CGO_ENABLED=0
+build-linux:: _fetch-cert
+# We depend on $(APP) not build because the common-make test tries to build python and fails otherwise.
+build-linux:: $(APP)
 
 build-circle:: build-linux ## build project for linux. If you need docker you will have to invoke that with an extension
 
 deps-go:: _go-install-dep-tools deps-lint ## install dependencies for project assumes you have go binary installed
 ifneq (,$(wildcard vendor))
-	@find  ./vendor/* -maxdepth 0 -type d -exec rm -rf "{}" \;
+	@find  ./vendor/* -maxdepth 0 -type d -exec rm -rf "{}" \; || true
 endif
+
+ifdef USE_MODULE
+	$(call INFO, "restoring dependencies using modules via \'go get\'")
+	@GO111MODULE=on go get
+endif
+
 ifdef USE_GVT
 	$(call INFO, "restoring dependencies with \'gvt\'")
 	@gvt rebuild > /dev/null
 endif
+
 ifdef USE_DEP
 	$(call INFO, "ensuring dependencies with \'dep\'")
-ifdef CIRCLECI
-	@cd $$(readlink -f "$$(pwd)") && dep ensure > /dev/null
-else
-	@dep ensure > /dev/null
-endif
+  ifdef CIRCLECI
+	  @cd $$(readlink -f "$$(pwd)") && dep ensure > /dev/null
+  else
+		@dep ensure > /dev/null
+  endif
 endif
 
+lint-go:: deps-lint
+  ifdef USE_MODULE
+		$(call INFO, "scanning source with golangci-lint")
+		golangci-lint	run -E goimports -v
+  else
+		$(call INFO, "scanning source with gometalinter")
 # for now we disable gotype because its vendor suport is mostly broken
 #  https://github.com/alecthomas/gometalinter/issues/91
-lint-go:: deps-lint
-	$(call INFO, "scanning source with gometalinter")
-	@gometalinter.v1 --vendor --enable-gc -Dstaticcheck -Dgotype -Ddupl -Dgocyclo -Dinterfacer -Daligncheck -Dunconvert -Dvarcheck  -Dstructcheck -E vet -E golint -E gofmt -E unused --deadline=80s
-	@gometalinter.v1 --vendor --enable-gc --disable-all -E staticcheck --deadline=60s
-	@gometalinter.v1 --vendor --enable-gc --disable-all -E interfacer -E aligncheck --deadline=30s
-	@gometalinter.v1 --vendor --enable-gc --disable-all -E unconvert -E varcheck   --deadline=30s
-	@gometalinter.v1 --vendor --enable-gc --disable-all -E structcheck  --deadline=30s
+		gometalinter.v2 --vendor --enable-gc -Dstaticcheck -Dgotype -Ddupl -Dgocyclo -Dinterfacer -Daligncheck -Dunconvert -Dvarcheck  -Dstructcheck -E vet -E golint -E gofmt -E unused --deadline=80s
+		gometalinter.v2 --vendor --enable-gc --disable-all -E staticcheck --deadline=60s
+		gometalinter.v2 --vendor --enable-gc --disable-all -E interfacer  --deadline=30s
+		gometalinter.v2 --vendor --enable-gc --disable-all -E unconvert -E varcheck   --deadline=30s
+		gometalinter.v2 --vendor --enable-gc --disable-all -E structcheck  --deadline=30s
+  endif
 
-test-go:: lint  ## run go tests (fmt vet)
-	$(call INFO, "running tests with race detection")
-	@go test -race -v $$(go list ./... | grep -v /vendor/)
-
-# also add go tests to the global test target
-test:: test-go
+test-go::  ## run go tests (fmt vet)
+	$(call INFO, "running tests with $(GOTEST_ARGS)")
+	@go test $(GOTEST_ARGS)  $$(go list ./... | grep -v /vendor/)
 
 test-no-race:: lint ## run tests without race detector
-	$(call INFO, "running tests without race detection")
-	@go test -v $$(go list ./... | grep -v /vendor/)
+	$(call WARN, "DEPRICATED: set GOTEST_ARGS and run make test-go to change how go-test runs from common-go. Running tests without race detection.")
+	go test $$(go list ./... | grep -v /vendor/)
 
 
 deps-circle-go:: ## install Go build and test dependencies on Circle-CI
@@ -81,12 +108,20 @@ deps-circle-go:: ## install Go build and test dependencies on Circle-CI
 	@bash devops/make/sh/install-go.sh
 
 deps-lint::
-ifeq (, $(shell which gometalinter.v1))
-	$(call INFO, "installing gometalinter")
-	@go get -u gopkg.in/alecthomas/gometalinter.v1 > /dev/null
-	@gometalinter.v1 --install > /dev/null
+ifdef USE_MODULE
+  ifeq (, $(shell which golangci-lint))
+	  curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $$(GOPATH)/bin $(GOLANGCI_VERSION)
+  else
+		$(call INFO, "golangci already installed")
+  endif
 else
-	$(call INFO, "gometalinter already installed")
+  ifeq (, $(shell which gometalinter.v2))
+	$(call INFO, "installing gometalinter")
+	@go get -u gopkg.in/alecthomas/gometalinter.v2 > /dev/null
+	@gometalinter.v2 --install > /dev/null
+  else
+		$(call INFO, "gometalinter already installed")
+  endif
 endif
 
 deps-coverage::
@@ -124,12 +159,11 @@ test-coverage-html:: test-coverage ## output html coverage file
 
 # this will detect if the project is dep or not and use it if it is. If not install gvt
 # if no manifest then its probably dep
-_go-install-dep-tools:
 ifdef USE_GVT
-	@make _go-install-gvt
+  _go-install-dep-tools: _go-install-gvt
 endif
 ifdef USE_DEP
-	@make _go-install-dep
+  _go-install-dep-tools: _go-install-dep
 endif
 
 _go-install-gvt::

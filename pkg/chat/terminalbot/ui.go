@@ -151,7 +151,6 @@ func (t *TerminalBot) writeView(name, text string) {
 
 	// for now strip this out and convert the text message into an array of words for easier parsing
 	msgSlice := strings.Split(text, " ")
-	botString := "@riker"
 	if msgSlice[0] != botString {
 		log.Println("riker not being addressed")
 		return

@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eu -o pipefail
 
 unset ROOT_DIR
 unset OBJ_DIR
@@ -7,6 +7,7 @@ ROOT_DIR=$1
 [[ -z "$ROOT_DIR" ]] && { echo "you need to specify the directory to scan as the only argument"; exit 1; }
 [[ -z "$APP" ]] && { echo "APP environment variable must be set"; exit 1; }
 [[ -z "$KUBE_NAMESPACE" ]] && { echo "KUBE_NAMESPACE environment variable must be set"; exit 1; }
+[[ -z "$KUBE_CONTEXT" ]] && { echo "KUBE_CONTEXT environment variable must be set"; exit 1; }
 
 # map_from_file will use kubectl create --from-file to generate a configmap. where each
 # file in the directory will become a key in the map with its file contents as the
@@ -16,9 +17,9 @@ map_from_file() {
     local map_name=$2
 
     echo "Processing $map_name from $map_path"
-    kubectl delete configmap "$map_name" --namespace="$KUBE_NAMESPACE" > /dev/null 2>&1 || true;
-    kubectl create configmap "$map_name" --from-file="$map_path" --namespace="$KUBE_NAMESPACE"
-    kubectl label configmap "$map_name" "app=$APP" --namespace="$KUBE_NAMESPACE"
+    kubectl delete configmap "$map_name" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT" > /dev/null 2>&1 || true;
+    kubectl create configmap "$map_name" --from-file="$map_path" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
+    kubectl label configmap "$map_name" "app=$APP" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
 }
 
 # map_literal uses kubectl create with the --from-literal to create a configmap from a file
@@ -35,9 +36,9 @@ map_literal() {
       literal_args+=("--from-literal=$kvpair")
     done <<<"$(awk '!/^ *#/ && NF' "$map_path")"
 
-    kubectl delete configmap "$map_name" --namespace="$KUBE_NAMESPACE" > /dev/null 2>&1 || true;
-    kubectl create configmap "$map_name" "${literal_args[@]}" --namespace="$KUBE_NAMESPACE"
-    kubectl label configmap "$map_name" "app=$APP" --namespace="$KUBE_NAMESPACE"
+    kubectl delete configmap "$map_name" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT" > /dev/null 2>&1 || true;
+    kubectl create configmap "$map_name" "${literal_args[@]}" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
+    kubectl label configmap "$map_name" "app=$APP" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
 }
 
 
@@ -48,9 +49,9 @@ secret_from_file() {
     local secret_path=$1
     local secret_name=$2
 
-    kubectl delete secret "$secret_name" --namespace="$KUBE_NAMESPACE" > /dev/null 2>&1 || true;
-    kubectl create secret generic "$secret_name" --from-file="$secret_path" --namespace="$KUBE_NAMESPACE"
-    kubectl label  secret "$secret_name" app="$APP" --namespace="$KUBE_NAMESPACE"
+    kubectl delete secret "$secret_name" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT" > /dev/null 2>&1 || true;
+    kubectl create secret generic "$secret_name" --from-file="$secret_path" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
+    kubectl label  secret "$secret_name" app="$APP" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
 }
 
 
@@ -67,9 +68,9 @@ secret_literal() {
         literal_args+=("--from-literal=$i")
     done
 
-    kubectl delete secret "$secret_name" --namespace="$KUBE_NAMESPACE" > /dev/null 2>&1 || true
-    kubectl create secret generic "$secret_name" "${literal_args[@]}" --namespace="$KUBE_NAMESPACE"
-    kubectl label secret "$secret_name" app="$APP" --namespace="$KUBE_NAMESPACE"
+    kubectl delete secret "$secret_name" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT" > /dev/null 2>&1 || true
+    kubectl create secret generic "$secret_name" "${literal_args[@]}" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
+    kubectl label secret "$secret_name" app="$APP" --namespace="$KUBE_NAMESPACE" --context "$KUBE_CONTEXT"
 }
 
 update() {
@@ -89,18 +90,20 @@ update() {
 }
 
 find_obj_dir() {
-    # we need to detect the right directory to use
-    # if this namespace is production set the dir to that
-    # if its not production then we look for a dir named the same
-    # as the namespace. If there is no namespace dir then use 'non-prod'
-    # by default.
-    if [[ "$KUBE_NAMESPACE" == "production" ]] ; then
+    # We need to detect the right directory to use, but want to allow the use of
+    # namespaces named "production" in non-production contexts.
+    # Use 'non-prod' by default.
+    # If the namespace is production AND the context is not sandbox, set the
+    # dir to production.
+    # If the namespace is not production then we use a dir named the same as the
+    # namespace if it exists.
+    OBJ_DIR="$ROOT_DIR/non-prod"
+
+    if [[ "$KUBE_NAMESPACE" == "production" && "$KUBE_CONTEXT" != *_sandbox-* ]] ; then
         OBJ_DIR="$ROOT_DIR/production"
-    elif [[ -d $ROOT_DIR/non-prod ]]  ; then
-        OBJ_DIR="$ROOT_DIR/non-prod"
     fi
 
-    if [[ -d $ROOT_DIR/$KUBE_NAMESPACE ]] ;then
+    if [[ -d $ROOT_DIR/$KUBE_NAMESPACE && "$KUBE_NAMESPACE" != "production" ]] ; then
         OBJ_DIR="$ROOT_DIR/$KUBE_NAMESPACE"
     fi
 }
@@ -129,7 +132,7 @@ main() {
 
 
     echo "Using objects from directory '$OBJ_DIR'"
-    for object in $OBJ_DIR/* ; do
+    for object in "$OBJ_DIR"/* ; do
         echo "Processing $object"
         update "$object" "$func_prefix"
     done

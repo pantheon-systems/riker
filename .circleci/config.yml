@@ -3,13 +3,14 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/golang:1.9
-    working_directory: /go/src/github.com/pantheon-systems/riker
+      - image: quay.io/getpantheon/go-build:latest
+        auth:
+          username: $QUAY_USER
+          password: $QUAY_PASSWD
     steps:
       - setup_remote_docker
       - checkout
       # NOTE: run 'deps' instead of 'deps-circle'. We don't need the go install script when using circleci 2.0
-      - run: make deps
       - run: make test-circle
       - run: make build-release
       - run: make build-docker

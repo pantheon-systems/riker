@@ -467,7 +467,7 @@ func (b *SlackBot) idInGroup(id, group string) bool {
 				b.log.Warnf("failed GetUserGroupMembers(%s): %s", g.ID, err)
 			}
 			for _, u := range m {
-				b.log.Debug("Match?: %s == %s", u, id)
+				b.log.Debugf("Match?: %s == %s", u, id)
 				if u == id {
 					return true
 				}

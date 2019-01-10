@@ -158,9 +158,9 @@ func (t TerminalBot) NextCommand(ctx context.Context, reg *botpb.Registration) (
 		return m, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	default:
+		return nil, nil
 	}
-
-	return nil, nil
 }
 
 // Send is the call a client makes to send a message back to riker
