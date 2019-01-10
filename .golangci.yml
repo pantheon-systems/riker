@@ -1,0 +1,16 @@
+---
+run:
+  skip-files:
+    - ".*/go/pkg/mod/.*$"
+
+linters-settings:
+  govet:
+    check-shadowing: true
+
+linters:
+  enable-all: false
+  enable:
+  disable:
+    - typecheck # some issues with go modules
+    - megacheck
+    - errcheck

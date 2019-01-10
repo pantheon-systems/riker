@@ -3,11 +3,8 @@
 #
 # The following ENV vars must be set before calling this script:
 #
-#   CLOUDSDK_CORE_PROJECT  # Google Cloud project Id to deploy into
 #   GCLOUD_EMAIL           # user-id for circle to authenticate to google cloud
 #   GCLOUD_KEY             # base64 encoded key
-#   CLOUDSDK_COMPUTE_ZONE  # The compute zone container the GKE container cluster to deploy into
-#   CLUSTER_ID             # ID of the GKE container cluster to deploy into
 set -e
 
 if [[ "$CIRCLECI" != "true" ]]; then
@@ -43,20 +40,3 @@ if [ ! -d "$HOME/google-cloud-sdk" ]; then
   $gcloud components update
   $gcloud components update kubectl
 fi
-
-echo "Setting Project"
-$gcloud config set project "$CLOUDSDK_CORE_PROJECT"
-echo "Setting Zone"
-$gcloud config set compute/zone "$CLOUDSDK_COMPUTE_ZONE"
-echo "Setting Cluster"
-$gcloud config set container/cluster "$CLUSTER_ID"
-
-echo "$GCLOUD_KEY" | base64 --decode > gcloud.json
-$gcloud auth activate-service-account "$GCLOUD_EMAIL" --key-file gcloud.json
-
-sshkey="$HOME/.ssh/google_compute_engine"
-if [ ! -f "$sshkey" ] ; then
-  ssh-keygen -f "$sshkey" -N ""
-fi
-
-$gcloud container clusters get-credentials "$CLUSTER_ID" --project="$CLOUDSDK_CORE_PROJECT"
