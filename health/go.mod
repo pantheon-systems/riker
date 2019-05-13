@@ -1,1 +1,0 @@
-module github.com/pantheon-systems/riker/health

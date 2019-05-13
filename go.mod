@@ -15,9 +15,9 @@ require (
 	github.com/nlopes/slack v0.0.0-20181230171726-db1f92067f7b
 	github.com/nsf/termbox-go v0.0.0-20190325093121-288510b9734e // indirect
 	github.com/pantheon-systems/go-certauth v0.0.0-20170606170341-8764720d23a5
-	github.com/pantheon-systems/riker/health v0.0.0
 	github.com/pelletier/go-toml v1.4.0 // indirect
-	github.com/pkg/errors v0.8.1 // indirect
+	github.com/pkg/errors v0.8.1
+	github.com/sirupsen/logrus v1.4.1
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.0 // indirect
 	github.com/spf13/cobra v0.0.1
@@ -31,5 +31,3 @@ require (
 	google.golang.org/genproto v0.0.0-20190502173448-54afdca5d873 // indirect
 	google.golang.org/grpc v1.19.0
 )
-
-replace github.com/pantheon-systems/riker/health => ./health

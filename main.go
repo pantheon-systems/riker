@@ -1,27 +1,27 @@
 package main
 
 import (
-	"sync"
+	"fmt"
+	"os"
+
 	"github.com/pantheon-systems/riker/cmd"
-	"github.com/pantheon-systems/riker/health"
+	"github.com/pantheon-systems/riker/pkg/healthz"
+	"github.com/pantheon-systems/riker/pkg/helpers"
 )
 
-// Utility function to parallelize function calls
-// Useful for multiple listeners
-func parallelize(functions ...func()) {
-	var waitGroup sync.WaitGroup
-	waitGroup.Add(len(functions))
+var healthzConfig healthz.Config
 
-	defer waitGroup.Wait()
-
-	for _, function := range functions {
-			go func(copy func()) {
-					defer waitGroup.Done()
-					copy()
-			}(function)
-	}
+func init() {
+	healthzConfig.BindPort = helpers.GetEnvAsInt("HEALTHZ_PORT", 8080)
+	healthzConfig.BindAddr = helpers.GetEnv("HEALTHZ_ADDR", "0.0.0.0")
 }
 
 func main() {
-	parallelize(cmd.Execute, health.Start)
+	healthServer, err := healthz.New(healthzConfig)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(-1)
+	}
+	go healthServer.StartHealthz()
+	cmd.Execute()
 }
