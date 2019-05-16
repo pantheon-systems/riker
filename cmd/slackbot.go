@@ -29,15 +29,6 @@ func startSlackBot(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	healthServer, err := healthz.New(healthz.Config{
-		BindPort: viper.GetInt("healthz-port"),
-		BindAddr: viper.GetString("healthz-address"),
-		Logger:   log,
-	})
-	if err != nil {
-		return err
-	}
-
 	b, err := slackbot.New(
 		viper.GetString("name"),
 		viper.GetString("bind-address"),
@@ -48,6 +39,22 @@ func startSlackBot(cmd *cobra.Command, args []string) error {
 		viper.GetStringSlice("allowed-ou"),
 		log,
 	)
+	if err != nil {
+		return err
+	}
+
+	healthServer, err := healthz.New(healthz.Config{
+		BindPort: viper.GetInt("healthz-port"),
+		BindAddr: viper.GetString("healthz-address"),
+		Logger:   log,
+		Providers: []healthz.ProviderInfo{
+			{
+				Type:        "Slackbot",
+				Description: "Check slackbot health.",
+				Check:       b,
+			},
+		},
+	})
 	if err != nil {
 		return err
 	}

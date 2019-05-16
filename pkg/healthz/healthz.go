@@ -36,6 +36,12 @@ type HealthCheckable interface {
 	HealthZ() error
 }
 
+type ProviderInfo struct {
+	Check       HealthCheckable
+	Description string
+	Type        string
+}
+
 type Error struct {
 	Type        string
 	ErrMsg      string
@@ -48,16 +54,18 @@ type HTTPResponse struct {
 }
 
 type Config struct {
-	BindPort int
-	BindAddr string
-	Hostname string
-	Logger   *logrus.Logger
+	BindPort  int
+	BindAddr  string
+	Hostname  string
+	Providers []ProviderInfo
+	Logger    *logrus.Logger
 }
 
 type HealthChecker struct {
-	Server   *http.Server
-	Hostname string
-	Logger   *logrus.Logger
+	Providers []ProviderInfo
+	Server    *http.Server
+	Hostname  string
+	Logger    *logrus.Logger
 }
 
 func New(config Config) (*HealthChecker, error) {
@@ -72,7 +80,10 @@ func New(config Config) (*HealthChecker, error) {
 		log.Info("autodetected hostname as: ", config.Hostname)
 	}
 
-	h := &HealthChecker{}
+	h := &HealthChecker{
+		Providers: config.Providers,
+		Hostname:  config.Hostname,
+	}
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", http.HandlerFunc(h.HandleHealthz))
 	mux.Handle("/liveness", http.HandlerFunc(h.HandleLiveness))
@@ -92,6 +103,19 @@ func (h *HealthChecker) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 	resp := &HTTPResponse{
 		Hostname: h.Hostname,
 	}
+
+	// Check all our health providers
+	for _, provider := range h.Providers {
+		err := provider.Check.HealthZ()
+		if err != nil {
+			resp.Errors = append(resp.Errors, Error{
+				Type:        provider.Type,
+				ErrMsg:      err.Error(),
+				Description: provider.Description,
+			})
+		}
+	}
+
 	if len(resp.Errors) > 0 {
 		for _, e := range resp.Errors {
 			h.Logger.WithFields(logrus.Fields{
