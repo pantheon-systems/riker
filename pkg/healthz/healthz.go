@@ -25,15 +25,12 @@ package healthz
 import (
 	"encoding/json"
 	"fmt"
-	stdLibLog "log"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/Sirupsen/logrus"
 )
-
-var log = logrus.WithField("component", "healthz")
 
 type HealthCheckable interface {
 	HealthZ() error
@@ -54,15 +51,18 @@ type Config struct {
 	BindPort int
 	BindAddr string
 	Hostname string
+	Logger   *logrus.Logger
 }
 
 type HealthChecker struct {
 	Server   *http.Server
 	Hostname string
+	Logger   *logrus.Logger
 }
 
 func New(config Config) (*HealthChecker, error) {
 	// Hostname is sent in check results, so that we can tell which pod the health check is failing on.
+	log := config.Logger
 	if config.Hostname == "" {
 		var err error
 		config.Hostname, err = os.Hostname()
@@ -72,7 +72,6 @@ func New(config Config) (*HealthChecker, error) {
 		log.Info("autodetected hostname as: ", config.Hostname)
 	}
 
-	w := log.Logger.Writer()
 	h := &HealthChecker{}
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", http.HandlerFunc(h.HandleHealthz))
@@ -82,9 +81,9 @@ func New(config Config) (*HealthChecker, error) {
 		ReadTimeout:    time.Second * 45,
 		WriteTimeout:   time.Second * 45,
 		MaxHeaderBytes: 1 << 20,
-		ErrorLog:       stdLibLog.New(w, "", 0),
 		Handler:        mux,
 	}
+	h.Logger = log
 	return h, nil
 }
 
@@ -95,14 +94,14 @@ func (h *HealthChecker) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(resp.Errors) > 0 {
 		for _, e := range resp.Errors {
-			log.WithFields(logrus.Fields{
+			h.Logger.WithFields(logrus.Fields{
 				"error":       e.ErrMsg,
 				"healthzDesc": e.Description,
 				"healthzType": e.Type,
 			}).Error("Check failed")
 		}
 	} else {
-		log.Debug("All checks passed")
+		h.Logger.Debug("All checks passed")
 	}
 	enc := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
@@ -114,7 +113,7 @@ func (h *HealthChecker) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	err := enc.Encode(resp)
 	if err != nil {
-		log.Error(err)
+		h.Logger.Error(err)
 	}
 }
 
@@ -123,15 +122,15 @@ func (h *HealthChecker) HandleLiveness(w http.ResponseWriter, r *http.Request) {
 	// log.Debug("Liveness check: OK")
 	_, err := w.Write([]byte("OK"))
 	if err != nil {
-		log.Errorln(err)
+		h.Logger.Errorln(err)
 	}
 }
 
 // StartHealthz should be run in a new goroutine.
 func (h *HealthChecker) StartHealthz() {
-	log.Debug("Starting healthz server")
+	h.Logger.Debug("Starting healthz server")
 	err := h.Server.ListenAndServe()
 	if err != nil {
-		log.Error(err)
+		h.Logger.Error(err)
 	}
 }
