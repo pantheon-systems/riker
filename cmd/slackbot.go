@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/pantheon-systems/riker/pkg/chat/slackbot"
+	"github.com/pantheon-systems/riker/pkg/healthz"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -42,6 +43,23 @@ func startSlackBot(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	healthServer, err := healthz.New(healthz.Config{
+		BindPort: viper.GetInt("healthz-port"),
+		BindAddr: viper.GetString("healthz-address"),
+		Logger:   log,
+		Providers: []healthz.ProviderInfo{
+			{
+				Type:        "Slackbot",
+				Description: "Check slackbot health.",
+				Check:       b,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	go healthServer.StartHealthz()
 	b.Run()
 	return nil
 }
@@ -84,6 +102,20 @@ func init() {
 			"riker-redshirt",
 		},
 		"Allowed Cert ous for redhirts to register commands to the server. Can be specified multiple times.",
+	)
+
+	slackCmd.PersistentFlags().Int32P(
+		"healthz-port",
+		"p",
+		8080,
+		"The port that the healthz HTTP server will listen on.",
+	)
+
+	slackCmd.PersistentFlags().StringP(
+		"healthz-address",
+		"l",
+		"0.0.0.0",
+		"The address that the healthz HTTP server will listen on.",
 	)
 
 	// binding flags to viper

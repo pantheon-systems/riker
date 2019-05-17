@@ -26,6 +26,7 @@ const (
 )
 
 type Bot interface {
+	HealthZ() error
 	Run()
 	ChatSend(msg, channel string)
 	botpb.RikerServer

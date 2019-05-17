@@ -25,6 +25,7 @@ import (
 	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
 	"github.com/pantheon-systems/riker/pkg/riker"
+	"github.com/pkg/errors"
 )
 
 // holds info on a connected client (redshirt) so we can send it data
@@ -163,6 +164,14 @@ func (b *SlackBot) SendStream(stream botpb.Riker_SendStreamServer) error {
 		msg.ThreadTimestamp = in.ThreadTs
 		b.rtm.SendMessage(msg)
 	}
+}
+
+func (b *SlackBot) HealthZ() error {
+	_, err := b.rtm.AuthTest()
+	if err != nil {
+		return errors.Wrap(err, "CRIT: authenticate to Slack RTM API")
+	}
+	return nil
 }
 
 // New is the constroctor for a bot

@@ -1,6 +1,8 @@
 package main
 
-import "github.com/pantheon-systems/riker/cmd"
+import (
+	"github.com/pantheon-systems/riker/cmd"
+)
 
 func main() {
 	cmd.Execute()
