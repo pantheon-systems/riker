@@ -59,6 +59,10 @@ ca-cert: ~/path/to/ca.crt
 allowed-ou:
   - riker
   - riker-redshirt
+
+# healthz options
+healthz-port: 8080
+healthz-address: 0.0.0.0
 ```
 
 ### Running Riker
@@ -72,8 +76,6 @@ Assuming you have a config file you can run Riker with the slack chat provider:
 Cuurently, Riker has a "naive" health monitoring mechanism in place to determine if it's running, the Kube way. It exposes two HTTP endpoints:
 - /healthz -> kube readiness endpoint
 - /liveness -> kube liveness endpoint
-
-The HTTP server port can be set via the `HEALTHZ_PORT` environment variable(default `8080`) and the listen address can be set via the `HEALTHZ_ADDR` environment variable(default `0.0.0.0`).
 
 TODO: integrate proper health monitoring of Riker via something like [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe)
 
