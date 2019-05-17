@@ -124,17 +124,15 @@ func (h *HealthChecker) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 				"healthzType": e.Type,
 			}).Error("Check failed")
 		}
+		w.WriteHeader(http.StatusServiceUnavailable)
 	} else {
 		h.Logger.Debug("All checks passed")
+		w.WriteHeader(http.StatusOK)
 	}
+
 	enc := json.NewEncoder(w)
 	w.Header().Set("Content-Type", "application/json")
 
-	// We use result `200 OK` regardless of whether there were errors.
-	// In Sensu, we check the body contains `"Errors":null`, and alert if not.
-	// If we returned a 5xx status code, the body check would not be
-	// executed and the check result would not contain the error text for on-call.
-	w.WriteHeader(http.StatusOK)
 	err := enc.Encode(resp)
 	if err != nil {
 		h.Logger.Error(err)
