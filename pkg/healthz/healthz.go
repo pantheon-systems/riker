@@ -98,8 +98,8 @@ func New(config Config) (*HealthChecker, error) {
 	return h, nil
 }
 
-// HandleHealthz is the http handler for `/healthz`
-func (h *HealthChecker) HandleHealthz(w http.ResponseWriter, r *http.Request) {
+// HandleHealthz is the http handler for `/liveness`
+func (h *HealthChecker) HandleLiveness(w http.ResponseWriter, r *http.Request) {
 	resp := &HTTPResponse{
 		Hostname: h.Hostname,
 	}
@@ -139,8 +139,8 @@ func (h *HealthChecker) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleLiveness is the http handler for `/liveness`
-func (h *HealthChecker) HandleLiveness(w http.ResponseWriter, r *http.Request) {
+// HandleLiveness is the http handler for `/healthz`
+func (h *HealthChecker) HandleHealthz(w http.ResponseWriter, r *http.Request) {
 	// log.Debug("Liveness check: OK")
 	_, err := w.Write([]byte("OK"))
 	if err != nil {
