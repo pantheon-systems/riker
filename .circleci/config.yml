@@ -11,7 +11,7 @@ jobs:
       - setup_remote_docker
       - checkout
       # NOTE: run 'deps' instead of 'deps-circle'. We don't need the go install script when using circleci 2.0
-      - run: make test-circle
+      - run: CGO_ENABLED=1 make test-circle
       - run: make build-release
       - run: make build-docker
       - deploy:

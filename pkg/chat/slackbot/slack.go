@@ -19,13 +19,13 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 
-	"github.com/Sirupsen/logrus"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
-	"github.com/nlopes/slack"
 	"github.com/pantheon-systems/go-certauth/certutils"
 	"github.com/pantheon-systems/riker/pkg/botpb"
 	"github.com/pantheon-systems/riker/pkg/riker"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/slack-go/slack"
 )
 
 // holds info on a connected client (redshirt) so we can send it data
