@@ -1,8 +1,8 @@
 APP := riker
 
 # compile release binaries for these archs and os's
-RELEASE_ARCH := 386 amd64
-RELEASE_OS := linux darwin openbsd
+RELEASE_ARCH := amd64
+RELEASE_OS := linux darwin
 
 include devops/make/common.mk
 include devops/make/common-docker.mk
