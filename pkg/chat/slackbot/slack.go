@@ -223,10 +223,10 @@ func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []str
 		redshirts: make(map[string]*redshirtRegistration, 10),
 	}
 
-	/*_, err = b.rtm.AuthTest()
+	_, err = b.rtm.AuthTest()
 	if err != nil {
 		return nil, err
-	}*/
+	}
 
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(k),
