@@ -223,6 +223,11 @@ func New(name, bindAddr, botKey, token, tlsFile, caFile string, allowedOUs []str
 		redshirts: make(map[string]*redshirtRegistration, 10),
 	}
 
+	/*_, err = b.rtm.AuthTest()
+	if err != nil {
+		return nil, err
+	}*/
+
 	grpcServer := grpc.NewServer(
 		grpc.KeepaliveParams(k),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(b.authOU)),
@@ -258,26 +263,8 @@ func (b *SlackBot) Run() {
 
 func (b *SlackBot) isChan(ev *slack.MessageEvent) (bool, error) {
 	// we need to detect a direct message from a channel message, and unfortunately slack doens't make that super awesome
-	// TODO: might try simplifing to this huristic though might be just as brittal as this code is now
 	// https://stackoverflow.com/questions/41111227/how-can-a-slack-bot-detect-a-direct-message-vs-a-message-in-a-channel
-	b.Lock()
-	defer b.Unlock()
-
-	isChan, ok := b.channels[ev.Channel]
-	if !ok {
-		_, err := b.rtm.GetChannelInfo(ev.Channel)
-		if err != nil && (err.Error() != "channel_not_found" && err.Error() != "method_not_supported_for_channel_type") {
-			b.log.Debug("not dm not channel: ", err)
-			return false, err
-		}
-
-		if err == nil {
-			isChan = true
-		}
-
-		b.channels[ev.Channel] = isChan
-	}
-	return isChan, nil
+	return ev != nil && string(ev.Channel[0]) != "D", nil
 }
 
 func (b *SlackBot) startBroker() {
